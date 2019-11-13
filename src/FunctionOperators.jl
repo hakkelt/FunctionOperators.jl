@@ -1,8 +1,6 @@
 module FunctionOperators
-using Parameters
-using MacroTools
-import Base: show, *, +, -, adjoint, ==
-using LinearAlgebra
+using MacroTools, LinearAlgebra
+import Base: show, *, +, -, adjoint, ==, eltype
 
 export FunctionOperator, FunOp, setPlan, @♻, FO_settings
 
@@ -15,8 +13,8 @@ end
 Object that holds global settings for `FunctionOperators` library
 
 Fields:
- - `verbose::Bool` If set to true, then allocation information and calculated plan function will be displayed upon creation (i.e., when a composite operator is first used).
- - `macro_verbose::Bool` If set to true, then recycling macro (@♻) will print the transformed loop.
+ - `verbose::Bool` If set to true, then allocation information and calculated plan function will be displayed upon creation (i.e., when a composite operator is first used). Default: `false`
+ - `macro_verbose::Bool` If set to true, then recycling macro (@♻) will print the transformed loop. Default: `false`
 """
 FO_settings = Settings(false, false)
 

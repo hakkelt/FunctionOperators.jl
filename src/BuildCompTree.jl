@@ -68,8 +68,8 @@ Base.:*(S::LinearAlgebra.UniformScaling, FO2::FunOp) =
 # switches the input and output dimension constraints (and also voids plan for FunctionOperatorComposite)
 
 Base.:adjoint(FO::FunctionOperator) = 
-    FunctionOperator(FO, adjoint = !FO.adjoint, inDims=FO.outDims, outDims=FO.inDims)
+    FunctionOperator(FO, adjoint = !FO.adjoint, inDims = FO.outDims, outDims = FO.inDims)
 
-Base.:adjoint(FO::FunctionOperatorComposite) = 
+Base.:adjoint(FO::FunctionOperatorComposite{T}) where {T} = 
     FunctionOperatorComposite(FO, name = "("*getName(FO)*")'", adjoint = !FO.adjoint,
         inDims = FO.outDims, outDims = FO.inDims, plan_function = noplan)

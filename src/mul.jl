@@ -11,8 +11,8 @@ Base.:*(FO::FunctionOperator, A::AbstractArray) = begin
     assertMultDim(FO, A)
     info("Allocation of buffer1, size: $(FO.outDims)")
     FO.adjoint ?
-        FO.mutating ? FO.backw(Array{FO.datatype}(undef, FO.outDims), A) : FO.backw(A) :
-        FO.mutating ? FO.forw(Array{FO.datatype}(undef, FO.outDims), A) : FO.forw(A)
+        FO.mutating ? FO.backw(Array{eltype(FO)}(undef, FO.outDims), A) : FO.backw(A) :
+        FO.mutating ? FO.forw(Array{eltype(FO)}(undef, FO.outDims), A) : FO.forw(A)
 end
 
 LinearAlgebra.mul!(buffer::AbstractArray, FO::FunctionOperator, A::AbstractArray) = begin
@@ -32,7 +32,7 @@ Base.:*(FO::FunctionOperatorComposite, A::AbstractArray) = begin
     assertType(FO, A)
     assertMultDim(FO, A)
     storage = Array{Buffer,1}(undef, 0)
-    buffer1 = newBuffer(FO.datatype, FO.outDims, storage)
+    buffer1 = newBuffer(eltype(FO), FO.outDims, storage)
     if FO.plan_function == noplan
         FO.plan_function, output, FO.plan_string = getPlan(FO, buffer1, FO.adjoint, "x", storage)
         info("Plan calculated: $(output.name) .= "*FO.plan_string)

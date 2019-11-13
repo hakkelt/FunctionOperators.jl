@@ -4,23 +4,21 @@
 # I think it is pretty much self-explenatory
 
 Base.show(io::IO, FO::FunctionOperator) =
-    print(io, "FunctionOperator{$(FO.datatype), $(FO.name), $(FO.inDims), $(FO.outDims)}")
+    print(io, "FunctionOperator{$(eltype(FO))}($(FO.name), $(FO.inDims), $(FO.outDims))")
 
 Base.show(io::IO, ::MIME"text/plain", FO::FunctionOperator) =
     print(io, """
-FunctionOperator
-    Data type: $(FO.datatype)
+FunctionOperator with eltype $(eltype(FO))
     Name: $(FO.name)
     Input dimensions: $(FO.inDims)
     Output dimensions: $(FO.outDims)""")
 
 Base.show(io::IO, FO::FunctionOperatorComposite) =
-    print(io, "FunctionOperatorComposite{$(FO.datatype), $(FO.name), $(FO.inDims), $(FO.outDims), $(FO.plan_string)}")
+    print(io, "FunctionOperatorComposite{$(eltype(FO))}($(FO.name), $(FO.inDims), $(FO.outDims), $(FO.plan_string))")
 
 Base.show(io::IO, ::MIME"text/plain", FO::FunctionOperatorComposite) =
     print(io, """
-FunctionOperatorComposite
-    Data type: $(FO.datatype)
+FunctionOperatorComposite with eltype $(eltype(FO))
     Name: $(FO.name)
     Input dimensions: $(FO.inDims)
     Output dimensions: $(FO.outDims)

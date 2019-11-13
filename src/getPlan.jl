@@ -89,12 +89,12 @@ end
 getPlanAddSub(FO::FunctionOperatorComposite, buffer::Buffer, adjoint::Bool, inside::String,
         op::Symbol, storage::Array{Buffer,1}) = begin
     adjoint && error("Sorry, I don't know how to calculate the adjoint of $(FO.name)")
-    inBuff = newBuffer(FO.datatype, FO.inDims, storage)
+    inBuff = newBuffer(eltype(FO), FO.inDims, storage)
     inBuff.available = false
     lFunc, lBuffer, lText = getPlan(FO.left, buffer, adjoint ⊻ FO.left.adjoint, inBuff.name, storage)
     lBuffer.available = false
     rBuffer = FO.right.mutating ?
-        newBuffer(FO.datatype, FO.outDims, storage) : lBuffer
+        newBuffer(eltype(FO), FO.outDims, storage) : lBuffer
     rFunc, rBuffer, rText = getPlan(FO.right, rBuffer, adjoint ⊻ FO.right.adjoint, inBuff.name, storage)
     lBuffer.available = inBuff.available = true
     if rBuffer.name == buffer.name == lBuffer.name
@@ -124,7 +124,7 @@ end
 getPlan(FO::FunctionOperator, buffer::Buffer, adjoint::Bool, inside::String,
         storage::Array{Buffer,1}) = begin
     size(buffer.buffer) != FO.outDims &&
-        (buffer = newBuffer(FO.datatype, FO.outDims, storage))
+        (buffer = newBuffer(eltype(FO), FO.outDims, storage))
     if FO.mutating
         text = FO.scaling ?
             "broadcast!(*, $(buffer.name), $(adjoint ? conj(FO.getScale()) : FO.getScale()), $inside)" : 

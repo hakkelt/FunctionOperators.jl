@@ -7,24 +7,24 @@
 info(str::String) =
     FO_settings.verbose && println(str)
 
-# Provide a uniform interface the get the eltype of different combinable objects
-getType(a::FunOp) = a.datatype
-getType(a::LinearAlgebra.UniformScaling{T}) where {T} = T
-getType(a::AbstractArray{T,N}) where {T,N} = T
+"Determine type of elements of array accepted by this operator"
+Base.eltype(::Type{FunctionOperator{T}}) where {T} = T
+Base.eltype(::Type{FunctionOperatorComposite{T}}) where {T} = T
 
 # ---------------------  Assertions  -----------------------
 
 # Enforce equality of types of operators to be combined,
 # or equality of type of array and the operator to be applied on it
 assertType(left, right) =
-    getType(left) != getType(right) &&
-        throw(TypeError(:*, "{$(left.name)} * {$(right.name))}", getType(left), getType(right)))
+    eltype(left) != eltype(right) && (isa(right, AbstractArray) ?
+        throw(TypeError(:*, "{$(left.name)} * {array}", eltype(left), eltype(right))) :
+        throw(TypeError(:*, "{$(left.name)} * {$(right.name))}", eltype(left), eltype(right))))
 
 # Used by mul!
 # Check if the type of array given as buffer for output matches the type of the operator
 assertTypeBuffer(left, right) =
-    getType(left) != getType(right) &&
-        throw(TypeError(:mul!, "output buffer type check", getType(right), getType(left)))
+    eltype(left) != eltype(right) &&
+        throw(TypeError(:mul!, "output buffer type check", eltype(right), eltype(left)))
 
 # Check size compatibility of left and right side of multiplication
 # Left side is always a subtype of FunOp, but the right side can be either FunOp or AbstractArray
@@ -67,8 +67,8 @@ scalingName(scaling) =
 # Create a FunctionOperator that does the scaling, and enforces input/output size that matches
 # the required size of surrounding operators (which are connected by multiplication)
 createScalingForMult(FO::FunOp, S::LinearAlgebra.UniformScaling, size::Tuple{Vararg{Int}}) = begin
-    λ = convert(FO.datatype, S.λ)
-    FunctionOperator(datatype = FO.datatype, name = scalingName(S),
+    λ = convert(eltype(FO), S.λ)
+    FunctionOperator{eltype(FO)}(name = scalingName(S),
         forw =  (buffer, x) -> buffer .= x .* λ,
         backw = (buffer, x) -> buffer .= x .* conj(λ),
         scaling = true, getScale = () -> λ, mutating = true,
@@ -80,8 +80,8 @@ end
 # Proper input size can only be checked when the forw/backw closure is executed
 createScalingForAddSub(FO::FunOp, S::LinearAlgebra.UniformScaling) = begin
     name = scalingName(S)
-    λ = convert(FO.datatype, S.λ)
-    FunctionOperator(datatype = FO.datatype, name = name,
+    λ = convert(eltype(FO), S.λ)
+    FunctionOperator{eltype(FO)}(name = name,
         forw =  (buffer, x) -> broadcast!(*, buffer, x, λ),
         backw = (buffer, x) -> broadcast!(*, buffer, x, conj(λ)),
         scaling = true, getScale = () -> λ, mutating = true,
