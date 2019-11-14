@@ -12,7 +12,7 @@ cd(dirname(@__FILE__))
 # feeding into Documenter.jl
 
 function convert_to_markdown(file)
-    run(`jupyter nbconvert ../examples/$file --to markdown --template documenter.tpl --output-dir src-staging`)
+    run(`jupyter nbconvert ../examples/$file --to markdown --template src/documenter.tpl --output-dir src-staging`)
     return "src-staging/$(replace(file, "ipynb"=>"md"))"
 end
 
@@ -35,8 +35,9 @@ for file in readdir("../examples")
         cp("src/$file", "src-staging/$file")
     end
 end
-cp("api.md","src-staging/api.md")
+cp("src/reference.md","src-staging/reference.md")
 cp("../README.md","src-staging/index.md")
+cp("src/assets/", "src-staging/assets")
 
 
 # highlight output cells (i.e. anything withouout a language specified) white
@@ -60,7 +61,7 @@ end
     topnav = nav(ul(header_links))
 
     pageurl = get(getpage(ctx, navnode).globals.meta, :EditURL, getpage(ctx, navnode).source)
-    nbpath = foldl(replace,["src-staging"=>"src",".md"=>".ipynb"], init=pageurl)
+    nbpath = foldl(replace,["src-staging"=>"../examples",".md"=>".ipynb"], init=pageurl)
     if isfile(nbpath)
         url = "https://mybinder.org/v2/gh/hakkelt/FunctionOperators.jl/master?urlpath=lab/tree/$(basename(nbpath))"
         push!(topnav.nodes, a[".edit-page", :href => url](img[:src => "https://mybinder.org/badge_logo.svg"]()))
@@ -94,7 +95,11 @@ makedocs(
     pages = [
         "index.md",
         "Tutorial.md",
-        "api.md"
+        "reference.md"
     ],
-    format = Documenter.HTML(disable_git = true, assets = ["style.css"])
+    format = Documenter.HTML(assets = ["assets/style.css", "assets/favicon.ico"])
+)
+
+deploydocs(
+    repo = "github.com/hakkelt/FunctionOperators.jl.git",
 )

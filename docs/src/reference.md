@@ -1,4 +1,4 @@
-# API 
+# Reference 
 
 ```@autodocs
 Modules = [FunctionOperators]
