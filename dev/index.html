@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>FunctionOperators.jl · FunctionOperators.jl</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="assets/documenter.js"></script><script src="siteinfo.js"></script><script src="../versions.js"></script><link href="assets/documenter.css" rel="stylesheet" type="text/css"/><link href="assets/style.css" rel="stylesheet" type="text/css"/><link href="assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><nav class="toc"><a href><img class="logo" src="assets/logo.svg" alt="FunctionOperators.jl logo"/></a><h1>FunctionOperators.jl</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li class="current"><a class="toctext" href>FunctionOperators.jl</a><ul class="internal"><li><a class="toctext" href="#Motivation-1">Motivation</a></li><li><a class="toctext" href="#Examples-1">Examples</a></li><li><a class="toctext" href="#Similar-packages-1">Similar packages</a></li></ul></li><li><a class="toctext" href="Tutorial/">Tutorial</a></li><li><a class="toctext" href="reference/">Reference</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href>FunctionOperators.jl</a></li></ul></nav><hr/><div id="topbar"><span>FunctionOperators.jl</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="FunctionOperators.jl-1" href="#FunctionOperators.jl-1">FunctionOperators.jl</a></h1><h2><a class="nav-anchor" id="Motivation-1" href="#Motivation-1">Motivation</a></h2><p>Have image reconstruction code in Julia, which is</p><ul><li>resambles the mathematical notation with abstract operators on multidimensional spaces,</li><li>exhibits high speed, and</li><li>easy to write and read.</li></ul><p>FunctionOperator is an operator that maps from a multidimensional space to another multidimensional space. The mapping is defined by a function (<code>forw</code>), and optionally the reverse mapping can also be defined (<code>backw</code>). The input the mapping must be subtype of AbstractArray.</p><h2><a class="nav-anchor" id="Examples-1" href="#Examples-1">Examples</a></h2><h3><a class="nav-anchor" id="Create-operator-1" href="#Create-operator-1">Create operator</a></h3><p>The 2D Fourier transformation operator:</p><pre class="language-julia"><code class="language-julia">julia&gt; using FFTW
+julia&gt; 𝓕 = FunctionOperator{Complex{Float64}}(
+            forw = x -&gt; fft(x, (1,2)), backw = x -&gt; ifft(x, (1,2)),
+            inDims = (128, 128), outDims = (128, 128))</code></pre><p>Finite differences / Total Variance operator:</p><pre class="language-julia"><code class="language-julia">julia&gt; ∇ = FunctionOperator{Complex{Float64}}(
+            forw = x -&gt; (circ(x, (1,0)) - x).^2 + (circ(x, (0,1)) - x).^2,
+            inDims = (128, 128), outDims = (128, 128))</code></pre><p>Or a sampling operator:</p><pre class="language-julia"><code class="language-julia">julia&gt; mask = rand(128, 128) .&lt; 0.3
+julia&gt; S = FunctionOperator{Complex{Float64}}(
+            forw = x -&gt; x[mask], backw = x -&gt; embed(x, mask),
+            inDims = (128, 128), outDims = (sum(mask),))</code></pre><p>Then these operators can be combined (almost) arbitrarily:</p><pre class="language-julia"><code class="language-julia">julia&gt; x = rand(128, 128);
+julia&gt; 𝓕 * ∇ * x == fft((circ(x, (1,0)) - x).^2 + (circ(x, (0,1)) - x).^2, (1,2))
+true
+julia&gt; combined = S * (𝓕 + ∇);
+julia&gt; combined * x == S * 𝓕 * x + S * ∇ * x
+true</code></pre><p>They can be combined with <code>UniformScaling</code> from <code>LinearAlgebra</code>:</p><pre class="language-julia"><code class="language-julia">julia&gt; using LinearAlgebra
+julia&gt; 3I * ∇ * x == 3 * (∇ * x)
+true
+julia&gt; (𝓕 + (3+2im)I) * x == 𝓕 * x + (3+2im) * x
+true</code></pre><h3><a class="nav-anchor" id="Performance-1" href="#Performance-1">Performance</a></h3><p>With little effort we can achieve the same speed as we would have without FunctionOperators. For example, consider the following function:</p><pre class="language-julia"><code class="language-julia">julia&gt; using BenchmarkTools
+julia&gt; FFT_plan = plan_fft(x, (1,2));
+julia&gt; iFFT_plan = plan_ifft!(x, (1,2));
+julia&gt; function foo(output::Array{Complex{Float64},2}, x::Array{Complex{Float64},2},
+                FFT_plan, iFFT_plan, mask::BitArray)
+            mul!(output, FFT_plan, x)
+            output .*= mask
+            mul!(output, iFFT_plan, output)
+        end;
+julia&gt; output = similar(x);
+julia&gt; @benchmark foo(output, x, FFT_plan, iFFT_plan, mask)
+BenchmarkTools.Trial:
+  memory estimate:  0 bytes
+  allocs estimate:  0
+  --------------
+  minimum time:     390.961 μs (0.00% GC)
+  median time:      418.149 μs (0.00% GC)
+  mean time:        408.111 μs (0.00% GC)
+  maximum time:     497.468 μs (0.00% GC)
+  --------------
+  samples:          10000
+  evals/sample:     1</code></pre><p>That function basically consist of three operations: A Fourier transform, a masking, and an inverse Fourier transform. Using FunctionOperators, we can achieve code that is more similar to the high-level description exhibiting the same performance:</p><pre class="language-julia"><code class="language-julia">julia&gt; 𝓕₂ = FunctionOperator{Complex{Float64}}(
+            forw = (output, x) -&gt; mul!(output, FFT_plan, x),
+            backw = (output, x) -&gt; mul!(output, iFFT_plan, x),
+            inDims = (128, 128), outDims = (128, 128));
+julia&gt; S₂ = FunctionOperator{Complex{Float64}}(
+            forw = (output, x) -&gt; output .= x .* mask,
+            inDims = (128, 128), outDims = (128, 128));
+julia&gt; combined = 𝓕₂&#39; * S₂ * 𝓕₂;
+julia&gt; @benchmark mul!(output, combined, x)
+BenchmarkTools.Trial:
+  memory estimate:  112 bytes
+  allocs estimate:  4
+  --------------
+  minimum time:     401.814 μs (0.00% GC)
+  median time:      429.648 μs (0.00% GC)
+  mean time:        427.211 μs (0.00% GC)
+  maximum time:     681.116 μs (0.00% GC)
+  --------------
+  samples:          10000
+  evals/sample:     1</code></pre><p>For more detailed description, see <a href="https://github.com/hakkelt/FunctionOperators.jl/blob/master/examples/Tutorial.ipynb">tutorial</a>.</p><h2><a class="nav-anchor" id="Similar-packages-1" href="#Similar-packages-1">Similar packages</a></h2><p>Not a Julia package, but the main motivation behind creating this package is to have the same functionality as <code>fatrix2</code> in the Matlab version <a href="https://github.com/JeffFessler/mirt">Michigan Image Reconstruction Toolbox (MIRT)</a>, (<a href="https://web.eecs.umich.edu/~fessler/irt/irt/doc/doc.pdf">description</a>).</p><p><code>FunctionOperators</code> was also inspired by <a href="https://github.com/Jutho/LinearMaps.jl">LinearMaps.jl</a>. The main difference is that <code>LinearMaps</code> support only mappings where the input and output are both vectors (which is often not the case in image reconstruction algorithms).</p><p><a href="https://github.com/JuliaSmoothOptimizers/LinearOperators.jl">LinearOperators</a> provides some similar features too, but it also requires the input and the output to be 1-dimensional.</p><footer><hr/><a class="next" href="Tutorial/"><span class="direction">Next</span><span class="title">Tutorial</span></a></footer></article></body></html>
