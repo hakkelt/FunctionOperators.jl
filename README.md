@@ -113,7 +113,7 @@ BenchmarkTools.Trial:
   --------------
   samples:          10000
   evals/sample:     1
-  ```
+```
   
 For more detailed description, see [tutorial](https://github.com/hakkelt/FunctionOperators.jl/blob/master/examples/Tutorial.ipynb).
 

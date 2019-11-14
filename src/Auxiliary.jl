@@ -27,7 +27,8 @@ Base.:(==)(FM1::FunctionOperatorComposite, FM2::FunctionOperatorComposite) =
 **Recycling macro**: Reduce the number of allocations inside a for loop by preallocation of arrays for the outputs of marked operations. Markers: `@♻` (`\\:recycle:`), `🔝` (`\\:top:`), `🔃` (`\\:arrows_clockwise:`), and `@🔃`
 
 Macro @♻ should be placed right before a for loop, and then it executes the following substitutions:
- - Expressions marked by `🔝` are going to be calculated before the loop, the result is stored in a variable, and the expression will be replaced by that variable. It also can be useful when a constant expression is used in the loop, but the idea behind creating that substitution is to allow caching of composite FunctionMatrices. Eg:
+ - **Expressions marked by `🔝`:**
+They are going to be calculated before the loop, the result is stored in a variable, and the expression will be replaced by that variable. It also can be useful when a constant expression is used in the loop, but the idea behind creating that substitution is to allow caching of composite FunctionMatrices. Eg:
 ```julia
 @♻ for i=1:5
     result = 🔝((FuncOp₁ + 2I) * FuncOp₂) * data
@@ -41,7 +42,9 @@ for i = 1:5
 end
 ```
 so that way plan is calculated only once, and also buffers for intermediate results of the composite operator are allocated once.
- - Expressions marked by `🔃` are going to be calculated before the loop (to allocate an array to store the result), but the expression is also evaluated in each loop iteration. The difference after the substitution is that the result of the expression is always saved to the preallocated array. Eg:
+
+ - **Expressions marked by `🔃`:**
+They are going to be calculated before the loop (to allocate an array to store the result), but the expression is also evaluated in each loop iteration. The difference after the substitution is that the result of the expression is always saved to the preallocated array. Eg:
 ```julia
 @♻ for i=1:5
     result = FuncOp₁ * 🔃(A + B)
@@ -67,7 +70,9 @@ for i = 1:5
     result = FuncOp₁ * mul!(🔃_1, A, B)
 end
 ```
- - Lastly, assignments marked by `@🔃` will be transformed into a call of `mul!`. Of course, it works only if `@🔃` is directly followed by an assignment that has a single multiplication on the right side. Eg:
+
+ - **Lastly, assignments marked by `@🔃`:**
+They will be transformed into a call of `mul!`. Of course, it works only if `@🔃` is directly followed by an assignment that has a single multiplication on the right side. Eg:
 ```julia
 @♻ for i=1:5
     @🔃 result = FuncOp₁ * A
