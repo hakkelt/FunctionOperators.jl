@@ -2,7 +2,8 @@ language: julia
 jobs:
   include:
     - install:
-        - pip install nbconvert
+        - pip install --user nbconvert
+        - apt install pandoc
     - stage: "Documentation"
       julia: 1.1
       os: linux
