@@ -1,12 +1,12 @@
 language: julia
 jobs:
   include:
-    - before_install:
-        - sudo apt-get -y install pandoc
-        - pip install --user nbconvert
     - stage: "Documentation"
       julia: 1.1
       os: linux
+      before_install:
+        - sudo apt-get -y install pandoc
+        - pip install --user nbconvert
       script:
         - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd()));
                                                Pkg.instantiate()'
