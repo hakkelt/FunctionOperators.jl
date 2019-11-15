@@ -37,7 +37,7 @@ end
 
 Base.:-(S::LinearAlgebra.UniformScaling, FO2::FunOp) =  begin
     assertAddDimScaling(FO2, S)
-    FunctionOperatorComposite(createScalingForAddSub(FO2, S), FO1,  :-)
+    FunctionOperatorComposite(createScalingForAddSub(FO2, S), FO2,  :-)
 end
 
 Base.:*(FO1::FunOp, FO2::FunOp) = begin
@@ -67,9 +67,12 @@ Base.:*(S::LinearAlgebra.UniformScaling, FO2::FunOp) =
 # Adjoint operator creates a new FunctionOperatorComposite object, toggles the adjoint field and
 # switches the input and output dimension constraints (and also voids plan for FunctionOperatorComposite)
 
-Base.:adjoint(FO::FunctionOperator) = 
+Base.:adjoint(FO::FunctionOperator) =
     FunctionOperator(FO, adjoint = !FO.adjoint, inDims = FO.outDims, outDims = FO.inDims)
 
-Base.:adjoint(FO::FunctionOperatorComposite{T}) where {T} = 
+Base.:adjoint(FO::FunctionOperatorComposite{T}) where {T} = begin
+    FO.operator in [:+, :-] &&
+        error("Sorry, I don't know how to calculate the adjoint of $(FO.name)")
     FunctionOperatorComposite(FO, name = "("*getName(FO)*")'", adjoint = !FO.adjoint,
         inDims = FO.outDims, outDims = FO.inDims, plan_function = noplan)
+end

@@ -41,73 +41,50 @@ Arguments
  - `inDims::Tuple{Vararg{Int}}` Size of input array
  - `outDims::Tuple{Vararg{Int}}` Size of output array
 """
-Base.@kwdef struct FunctionOperator{T <: Number} <: FunOp
+@with_kw_noshow struct FunctionOperator{T <: Number} <: FunOp
     name::String = "Op$(getNextNum())"
     forw::Function
-    backw::Function = () -> error("backward function not implemented for "*name)
+    backw::Function = (nargs(forw) == 2 ? 
+        (x) -> error("backward function not implemented for "*name) :
+        (buffer, x) -> error("backward function not implemented for "*name))
     adjoint::Bool = false # adjoint operator creates a new object where this field is negated
     mutating::Bool = checkMutating(forw) # true if forw has two arguments
     scaling::Bool = false # true if created from LinearAlgebra.UniformScaling object
     getScale::Function = () -> () # This is used only if scaling field is true
     inDims::Tuple{Vararg{Int}}
     outDims::Tuple{Vararg{Int}}
-end
-
-macro funcAssert(func...)
-    length(func) == 1 ?
-        esc(quote
-            @assert (2 <= nargs($(func[1])) <= 3)  "forw can only accept either one or two inputs"
-        end) :
-        esc(quote
-            @assert (2 <= nargs($(func[1])) <= 3)  "forw can only accept either one or two inputs"
-            @assert (2 <= nargs($(func[2])) <= 3) "backw can only accept either one or two inputs"
-            @assert (nargs($(func[1])) == nargs($(func[2]))) "forw and backw must accept the same number of inputs!"
-        end)
+    @assert (2 <= nargs(forw) <= 3)  "forw can only accept either one or two inputs"
+    @assert (nargs(forw) == nargs(backw)) "forw and backw must accept the same number of inputs!"
 end
 
 # Constructor with positional arguments without default valued fields
 FunctionOperator{T}(forw::Function,
         inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} = begin
-    @funcAssert forw
     FunctionOperator{T}(forw = forw, inDims = inDims, outDims = outDims)
 end
 
 # Constructor with positional arguments without backw
 FunctionOperator{T}(name::String, forw::Function,
         inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} = begin
-    @funcAssert forw
     FunctionOperator{T}(name = name, forw = forw, inDims = inDims, outDims = outDims)
 end
 
 # Constructor with positional arguments without name
 FunctionOperator{T}(forw::Function, backw::Function,
         inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} = begin
-    @funcAssert forw backw
     FunctionOperator{T}(forw = forw, backw = backw, inDims=inDims, outDims=outDims)
 end
 
 # Constructor with positional arguments with all public fields
 FunctionOperator{T}(name::String, forw::Function, backw::Function,
         inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} = begin
-    @funcAssert forw backw
     FunctionOperator{T}(name = name, forw = forw, backw = backw, inDims = inDims, outDims = outDims)
-end
-
-# Copy constructor with keywords to overwrite copied fields
-FunctionOperator(FO::FunctionOperator; name::String = FO.name,
-        forw::Function = FO.forw, backw::Function = FO.backw,
-        adjoint::Bool = FO.adjoint, mutating::Bool = FO.mutating,
-        scaling::Bool = FO.scaling, getScale::Function = FO.getScale,
-        inDims::Tuple{Vararg{Int}} = FO.inDims, outDims::Tuple{Vararg{Int}} = FO.outDims) = begin
-    @funcAssert forw backw
-    FunctionOperator{eltype(FO)}(name, forw, backw, adjoint, mutating, scaling, getScale,
-        inDims, outDims)
 end
 
 # Structure holding a combination of FunctionOperators
 # It is mutable because plan, plan_string and plan_buffer fields are changed
 # after applying the operator to an array
-Base.@kwdef mutable struct FunctionOperatorComposite{T <: Number} <: FunOp
+@with_kw_noshow mutable struct FunctionOperatorComposite{T <: Number} <: FunOp
     name::String
     left::FunOp
     right::FunOp
@@ -123,16 +100,6 @@ end
 # Get the value of the name field and append ' if it is adjoint
 getName(FO::FunctionOperator) = FO.adjoint ? FO.name*"'" : FO.name
 getName(FO::FunctionOperatorComposite) = FO.adjoint ? "($(FO.name))'" : FO.name
-
-# Copy constructor with keywords to overwrite copied fields
-FunctionOperatorComposite(FO::FunctionOperatorComposite; name::String = FO.name,
-        left::FunOp = FO.left, right::FunOp = FO.right, operator::Symbol = FO.operator,
-        adjoint::Bool = FO.adjoint, mutating::Bool = FO.mutating,
-        inDims::Tuple{Vararg{Int}} = FO.inDims, outDims::Tuple{Vararg{Int}} = FO.outDims,
-        plan_function::Function = FO.plan_function, plan_string::String = FO.plan_string) = begin
-    FunctionOperatorComposite{eltype(FO)}(name, left, right, operator, adjoint, mutating,
-        inDims, outDims, plan_function, plan_string)
-end
 
 # Constructor that combines two FunOp objects
 function FunctionOperatorComposite(FO1::FunOp, FO2::FunOp, op::Symbol)

@@ -54,7 +54,7 @@ end
 # left is always FunOp, right is always UniformScaling
 assertAddDimScaling(left, right) = begin
     left.inDims != left.outDims &&
-        throw(DimensionMismatch("{$(left.name)} has input size of $(left.inDims), and its output size is $(left.ouDims). {$(right.name)} should match the input and output size of {$(left.name)}, but scaling can't change the size of its output."))
+        throw(DimensionMismatch("{$(left.name)} has input size of $(left.inDims), and its output size is $(left.outDims). {$(scalingName(right))} should match the input and output size of {$(left.name)}, but scaling can't change the size of its output."))
 end
 
 # ----------------  Wrap UniformScaling  -------------------

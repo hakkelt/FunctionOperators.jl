@@ -1,5 +1,5 @@
 module FunctionOperators
-using MacroTools, LinearAlgebra
+using Parameters, MacroTools, LinearAlgebra
 import Base: show, *, +, -, adjoint, ==, eltype
 
 export FunctionOperator, FunOp, setPlan, @♻, FO_settings

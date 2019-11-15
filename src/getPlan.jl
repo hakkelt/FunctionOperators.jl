@@ -78,25 +78,37 @@ macro createReturnValue(left, right, op)
     rBuf = right == :buffer ? :buffer : :(rBuffer.buffer)
     name = left == :buffer ? :(buffer.name) : :(lBuffer.name)
     esc(quote
-       ((buffer, x) -> begin
-            inBuff.buffer .= x;
-            broadcast!($op, $lBuf, lFunc($lBuf, inBuff.buffer), rFunc($rBuf, inBuff.buffer))
-                    end, lBuffer, "($(inBuff.name) .= $inside; broadcast!($op, $($name), $lText, $rText))")
+        if FO.left.mutating && !FO.right.mutating
+           if $op == +
+               ((buffer, x) -> begin
+                    copy!(inBuff.buffer, x);
+                    broadcast!(+, $lBuf, rFunc($rBuf, inBuff.buffer), lFunc($lBuf, inBuff.buffer))
+                            end, lBuffer, "(copy!($(inBuff.name), $inside); broadcast!(+, $($name), $rText, $lText))")
+            else
+               ((buffer, x) -> begin
+                    copy!(inBuff.buffer, x);
+                    broadcast!((x,y) -> y-x, $lBuf, rFunc($rBuf, inBuff.buffer), lFunc($lBuf, inBuff.buffer))
+                            end, lBuffer, "(copy!($(inBuff.name), $inside); broadcast!((x,y) -> y-x, , $($name), $rText, $lText))")
+            end
+        else
+           ((buffer, x) -> begin
+                inBuff.buffer .= x;
+                broadcast!($op, $lBuf, lFunc($lBuf, inBuff.buffer), rFunc($rBuf, inBuff.buffer))
+            end, lBuffer, "($(inBuff.name) .= $inside; broadcast!($op, $($name), $lText, $rText))")
+        end
     end)
 end
 
 # "In case of addition/substraction of operators..."
 getPlanAddSub(FO::FunctionOperatorComposite, buffer::Buffer, adjoint::Bool, inside::String,
         op::Symbol, storage::Array{Buffer,1}) = begin
-    adjoint && error("Sorry, I don't know how to calculate the adjoint of $(FO.name)")
     inBuff = newBuffer(eltype(FO), FO.inDims, storage)
     inBuff.available = false
     lFunc, lBuffer, lText = getPlan(FO.left, buffer, adjoint ⊻ FO.left.adjoint, inBuff.name, storage)
-    lBuffer.available = false
-    rBuffer = FO.right.mutating ?
+    rBuffer = FO.left.mutating && FO.right.mutating ? 
         newBuffer(eltype(FO), FO.outDims, storage) : lBuffer
     rFunc, rBuffer, rText = getPlan(FO.right, rBuffer, adjoint ⊻ FO.right.adjoint, inBuff.name, storage)
-    lBuffer.available = inBuff.available = true
+    inBuff.available = true
     if rBuffer.name == buffer.name == lBuffer.name
         op == :+ ? @createReturnValue(buffer, buffer, +) : @createReturnValue(buffer, buffer, -)
     elseif lBuffer.name == buffer.name != rBuffer.name
