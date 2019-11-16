@@ -48,6 +48,7 @@ Arguments
         (x) -> error("backward function not implemented for "*name) :
         (buffer, x) -> error("backward function not implemented for "*name))
     adjoint::Bool = false # adjoint operator creates a new object where this field is negated
+    hasAddOrSub::Bool = false # does it contain addition or substraction?
     mutating::Bool = checkMutating(forw) # true if forw has two arguments
     scaling::Bool = false # true if created from LinearAlgebra.UniformScaling object
     getScale::Function = () -> () # This is used only if scaling field is true
@@ -90,9 +91,10 @@ end
     right::FunOp
     operator::Symbol
     adjoint::Bool = false
-    mutating::Bool
-    inDims::Tuple{Vararg{Int}}
-    outDims::Tuple{Vararg{Int}}
+    hasAddOrSub::Bool = operator in [:+, :-] || left.hasAddOrSub || right.hasAddOrSub
+    mutating::Bool = operator in [:+, :-] || left.mutating || right.mutating
+    inDims::Tuple{Vararg{Int}} = right.inDims
+    outDims::Tuple{Vararg{Int}} = left.outDims
     plan_function::Function = noplan
     plan_string::String = "no plan"
 end
@@ -105,12 +107,5 @@ getName(FO::FunctionOperatorComposite) = FO.adjoint ? "($(FO.name))'" : FO.name
 function FunctionOperatorComposite(FO1::FunOp, FO2::FunOp, op::Symbol)
     name = getName(FO1) * " $op " * getName(FO2)
     name = op == :* ? name : "($name)"
-    FunctionOperatorComposite{eltype(FO1)}(
-        name = name,
-        left = FO1,
-        right = FO2,
-        operator = op,
-        mutating = (FO1.mutating || FO2.mutating),
-        inDims = FO2.inDims,
-        outDims = FO1.outDims)
+    FunctionOperatorComposite{eltype(FO1)}(name = name, left = FO1, right = FO2, operator = op)
 end

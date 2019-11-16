@@ -15,10 +15,119 @@ setPlan(FO::FunctionOperatorComposite, f::Function, f_str::String = "manually de
     FO.plan_string = f_str
 end
 
-# Equality check based on name
-# HEADS UP! This works only when operators with the same name has also the same functionality!
+# --------- Equality check -----------
+
+# Expand arithmetic expression trees
+function expand(expr)
+    sortExprList(ExprList) = sort(ExprList, by = x -> string(x), rev = true)
+    adj(e) = e isa Expr && string(e.head) == "'" ? e.args[1] :
+        Expr(Symbol("'"), e)
+    MacroTools.postwalk(x -> begin
+        # Adjoint expansion. Eg: (op1 * op2)' -> op2' * op1'
+        if @capture(x, (e1_ * e2__)')
+            Expr(:call, :*, [adj(e) for e in reverse(e2)]..., adj(e1))
+        # Multiplication associativity
+        elseif @capture(x, (e1_ * e2__) * e3__)
+            Expr(:call, :*, e1, e2..., e3...)
+        elseif @capture(x, e1__ * (e2_ * e3__))
+            Expr(:call, :*, e1..., e2, e3...)
+        # Remove unnecessary parentheses around addition by associativity.
+        # Eg: op1 + (op2 + op3) -> op1 + op2 + op3
+        elseif @capture(x, e1__ + (e2_ + e3__))
+            Expr(:call, :+, sortExprList([e1..., e2, e3...])...)
+        elseif @capture(x, (e1_ + e2__) + e3__)
+            Expr(:call, :+, sortExprList([e1, e2..., e3...])...)
+        elseif @capture(x, e1__ + (e2_ + e3__) + e4_)
+            Expr(:call, :+, sortExprList([e1..., e2, e3..., e4])...)
+        elseif @capture(x, e1_ + (e2_ + e3__) + e4__)
+            Expr(:call, :+, sortExprList([e1, e2, e3..., e4...])...)
+        # This branch is dedicated only to sort alphabetically addition terms (commutativity)
+        elseif @capture(x, e1__ + e2_)
+            Expr(:call, :+, sortExprList([e1..., e2])...)
+        # Expandion by distributivity. Eg: (op1 ± op2) * op3 -> op1 * op3 ± op2 * op3
+        elseif @capture(x, (e1__ + e2_) * (e3_))
+            list = sortExprList([e1..., e2])
+            Expr(:call, :+, [Expr(:call, :*, e, e3) for e in list]...)
+        elseif @capture(x, (e1__ + e2_) * e3__)
+            list = sortExprList([e1..., e2])
+            Expr(:call, :+, [Expr(:call, :*, e, e3...) for e in list]...)
+        elseif @capture(x, (e1_ - e2_) * (e3_))
+            Expr(:call, :-, Expr(:call, :*, e1, e3), Expr(:call, :*, e2, e3))
+        elseif @capture(x, (e1_ - e2_) * e3__)
+            Expr(:call, :-, Expr(:call, :*, e1, e3...), Expr(:call, :*, e2, e3...))
+        # Expandion by distributivity -- the tricky case.
+        # Eg: op0 * (op1 ± op2) * op3 -> op0 * (op1 * op3 ± op2 * op3)
+        elseif @capture(x, e0__ * (e1__ + e2_) * (e3_))
+            list = sortExprList([e1..., e2])
+            Expr(:call, :*, e0...,
+                    Expr(:call, :+, [Expr(:call, :*, e, e3) for e in list]...))
+        elseif @capture(x, e0_ * (e1__ + e2_) * e3__)
+            if length(e3) > 0
+                list = sortExprList([e1..., e2])
+                Expr(:call, :*, e0,
+                    Expr(:call, :+, [Expr(:call, :*, e, e3...) for e in list]...))
+            else
+                x
+            end
+        elseif @capture(x, e0__ * (e1_ - e2_) * (e3_))
+            Expr(:call, :*, e0...,
+                    Expr(:call, :-, Expr(:call, :*, e1, e3), Expr(:call, :*, e2, e3)))
+        elseif @capture(x, e0_ * (e1_ - e2_) * e3__)
+            length(e3) > 0 ?
+                Expr(:call, :*, e0, Expr(:call, :-,
+                    Expr(:call, :*, e1, e3...), Expr(:call, :*, e2, e3...))) : x
+        # Sort alphabetically substraction terms by the substraction commutativity
+        # Eg: op1 - op2 - op3 == op1 - op3 - op2
+        elseif @capture(x, (e1_ - e2_) - e3_)
+            e2, e3 = sortExprList([e2, e3])
+            Expr(:call, :-, Expr(:call, :-, e1, e2), e3)
+        # Expand by substraction-addition associativity.
+        # Eg. op1 - (op2 + op3) -> op1 - op2 - op3
+        elseif @capture(x, e1_ - (e2__ + e3_))
+            e = e1
+            for e2_item in e2
+                e = Expr(:call, :-, e, e2_item)
+            end
+            Expr(:call, :-, e, e3)
+        # Expand by substraction-substraction associativity.
+        # Eg. op1 - (op2 - op3) -> op1 - op2 + op3
+        elseif @capture(x, e1_ - (e2_ - e3_))
+            Expr(:call, :+, Expr(:call, :-, e1, e2), e3)
+        # Expand by addition-substraction associativity.
+        # Eg. op1 + (op2 - op3) -> op1 + op2 - op3
+        elseif @capture(x, e1__ + (e2_ - e3_))
+            Expr(:call, :-, Expr(:call, :+, e1..., e2), e3)
+        else
+            x
+        end
+    end, expr)
+end
+
+# Normalize (expand fully) an arithmetic expression given as a string
+function normalizeExpression(str)
+    expr = Meta.parse(str) # I use the Julia parser to parse my simple arithmetical expressions
+    # Not too elegant solution, I know...
+    # But even complicated expressions can be fully expanded within a couple of iterations
+    for i = 1:20
+        new_expr = expand(expr)
+        string(new_expr) == string(expr) && break
+        expr = new_expr
+    end
+    string(expr)
+end
+
+"""
+Equality check based on name
+
+**HEADS UP!** This works only when operators with the same name has also the same functionality!
+
+It performs basic arithmetic transformations on the expressions, so it recognizes even some less obvious equalities. The rules it uses:
+ - Associativity: ``op1 * op2 * op3 = (op1 * op2) * op3 = op1 * (op2 * op3)``, ``op1 + op2 + op3 = (op1 + op2) + op3 = op1 + (op2 + op3)``, ``op1 + (op2 - op3) == (op1 + op2) - op3``, ``op1 - (op2 + op3) == (op1 - op2) - op3``
+ - Commutativity: ``op1 - op2 - op3 = op1 - op3 - op2``, ``op1 + op2 = op2 + op1``
+ - Distributivity: ``(op1 + op2) * op3 = op1 * op3 + op2 * op3`` (Note that ``op1 * (op2 + op3) ≠ op1 * op2 + op1 * op3``)
+"""
 Base.:(==)(FM1::FunctionOperatorComposite, FM2::FunctionOperatorComposite) =
-    FM1.name == FM2.name
+    normalizeExpression(FM1.name) == normalizeExpression(FM2.name)
 
 # --------- Recycling macro -----------
 # Preallocates arrays for the output of different operations
@@ -57,7 +166,7 @@ for i = 1:5
     result = FuncOp₁ * @.(🔃_1 = A + B)
 end
 ```
-This transformation first allocates an array named `🔃_1`, and then in every iteration it is recalculated, saved to `🔃_1`, and the this value is used for the rest of the operation (i.e.: `FuncOp₁ * 🔃_1`. Note that `@.` macro is inserted before the inline assignment. This is needed otherwise `A + B` would allocate a new array before it is stored in `🔃_1`. **Warning!** It can break your code, e.g. @.(🔃_1 = A * B) ≠ (🔃_1 = A * B) {matrix multiplication vs. elementwise multiplication}! On the other hand, when the marked expression consists only a multiplication, then it is transformed into a call of `mul!`. Eg:
+This transformation first allocates an array named `🔃_1`, and then in every iteration it is recalculated, saved to `🔃_1`, and the this value is used for the rest of the operation (i.e.: `FuncOp₁ * 🔃_1`. Note that `@.` macro is inserted before the inline assignment. This is needed otherwise `A + B` would allocate a new array before it is stored in `🔃_1`. **Warning!** It can break your code, e.g. `@.(🔃_1 = A * B) ≠ (🔃_1 = A .* B)` {matrix multiplication vs. elementwise multiplication}! On the other hand, when the marked expression consists only a multiplication, then it is transformed into a call of `mul!`. Eg:
 ```julia
 @♻ for i=1:5
     result = FuncOp₁ * 🔃(A * B)
@@ -93,30 +202,30 @@ macro ♻(loop)
     🔃s = Array{Tuple{Symbol, Expr}}(undef, 0)
     counter = 0
     loop = MacroTools.postwalk(x -> begin
-            if @capture(x, 🔝(expr_))
-                newSymbol = Symbol(:🔝_, length(🔝s) + 1)
-                push!(🔝s, (newSymbol, expr))           # preallocate an array before the loop
-                newSymbol                              # replace the expression with name of buffer
-            elseif @capture(x, 🔃(expr_))
-                counter += 1
-                newSymbol = Symbol(:🔃_, counter)
-                push!(🔃s, (newSymbol, expr))          # preallocate an array before the loop
-                @capture(expr, lhs_ * rhs_) ?          # replace the expression...
-                    :(mul!($newSymbol, $lhs, $rhs)) :  # ...with mul!, if it is multiplication;
-                    :(@.($newSymbol = $expr))          # ...with assignment + dot macro otherwise
-            elseif @capture(x, @🔃 expr_)
-                if @capture(expr, lhs_ = rhs1_ * rhs2_)
-                    push!(🔃s, (lhs, :($rhs1 * $rhs2))) # preallocate an array before the loop
-                elseif @capture(expr, lhs_ .= rhs1_ * rhs2_)
-                    # nothing to do here
-                else
-                    @assert false "Macro @🔃 must be followed by an assigment that has a single multiplication on the right side"
-                end
-                :(mul!($lhs, $(rhs1), $(rhs2)))        # replace with mul!
+        if @capture(x, 🔝(expr_))
+            newSymbol = Symbol(:🔝_, length(🔝s) + 1)
+            push!(🔝s, (newSymbol, expr))           # preallocate an array before the loop
+            newSymbol                              # replace the expression with name of buffer
+        elseif @capture(x, 🔃(expr_))
+            counter += 1
+            newSymbol = Symbol(:🔃_, counter)
+            push!(🔃s, (newSymbol, expr))          # preallocate an array before the loop
+            @capture(expr, lhs_ * rhs_) ?          # replace the expression...
+                :(mul!($newSymbol, $lhs, $rhs)) :  # ...with mul!, if it is multiplication;
+                :(@.($newSymbol = $expr))          # ...with assignment + dot macro otherwise
+        elseif @capture(x, @🔃 expr_)
+            if @capture(expr, lhs_ = rhs1_ * rhs2_) || @capture(expr, lhs_ = mul!(e_, rhs1_, rhs2_))
+                push!(🔃s, (lhs, :($rhs1 * $rhs2))) # preallocate an array before the loop
+            elseif @capture(expr, lhs_ .= rhs1_ * rhs2_) || @capture(expr, lhs_ .= mul!(e_, rhs1_, rhs2_))
+                # nothing to do here
             else
-                x
+                @assert false "Macro @🔃 must be followed by an assigment that has a single multiplication on the right side"
             end
-        end, loop)
+            :(mul!($lhs, $(rhs1), $(rhs2)))        # replace with mul!
+        else
+            x
+        end
+    end, loop)
     🔝_defs = [:($left = $right) for (left, right) in 🔝s]
     🔃_defs = [:($left = $right) for (left, right) in 🔃s]
     extended_loop = Expr(:block, 🔝_defs..., 🔃_defs..., loop)
