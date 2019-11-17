@@ -1,5 +1,7 @@
 # FunctionOperators.jl
 
+[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://hakkelt.github.io/FunctionOperators.jl/latest/)
+
 ## Motivation
 
 Have image reconstruction code in Julia, which is
