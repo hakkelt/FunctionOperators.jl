@@ -29,6 +29,10 @@ using FunctionOperators, LinearAlgebra, Test
     @testset "Fidelity (manually checked)" begin
         @test Op₁ * (ones(10,10)*2) == ones(10,10)*8
         @test Op₁' * (ones(10,10)*8) == ones(10,10)*2
+        @test Op₁ * I * (ones(10,10)*2) == ones(10,10)*8
+        @test Op₁' * I * (ones(10,10)*8) == ones(10,10)*2
+        @test I * Op₁ * (ones(10,10)*2) == ones(10,10)*8
+        @test I * Op₁' * (ones(10,10)*8) == ones(10,10)*2
         @test Op₃ * Op₁ * (ones(10,10)*2) == ones(10,10)*8 .* w
         @test (Op₃ * Op₁)' * (ones(10,10)*8 .* w) == Op₁' * Op₃' * (ones(10,10)*8 .* w)
         @test (Op₃ * Op₁)' * (ones(10,10)*8 .* w) == ones(10,10)*2

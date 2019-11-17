@@ -1,6 +1,7 @@
 # FunctionOperators.jl
 
 [![](https://img.shields.io/badge/docs-latest-blue.svg)](https://hakkelt.github.io/FunctionOperators.jl/latest/)
+[![Build Status](https://travis-ci.com/hakkelt/FunctionOperators.jl.svg?branch=master)](https://travis-ci.com/hakkelt/FunctionOperators.jl)
 
 ## Motivation
 
