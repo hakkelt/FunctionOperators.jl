@@ -20,7 +20,7 @@ Op₂ = FunctionOperator{Float64}(&quot;Op₂&quot;,
 Op₁ * I * data == Op₁.forw(data),
 Op₁ * 3I * data == Op₁.forw(3 * data),
 Op₂*(Op₁ - 2.5*I)*Op₁&#39;*data == Op₂.forw(Op₁.forw(Op₁.backw(data))-2.5*Op₁.backw(data))</code></pre><pre class="language-output"><code class="language-output">(true, true, true)</code></pre><p>Adjoint of nested operators also work:</p><pre class="language-julia"><code class="language-julia">(Op₂ * Op₁)&#39; * (Op₂ * Op₁) * data == (Op₂ * Op₁)&#39; * Op₂ * Op₁ * data ==
-    Op₁.backw(Op₂.backw(Op₂.forw(Op₁.forw(data))))</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p>...but <em>not</em> with addition or substraction:</p><pre class="language-julia"><code class="language-julia">(Op₁ + 3I)&#39; * data</code></pre><pre class="language-none"><code class="language-none">Sorry, I don&#39;t know how to calculate the adjoint of ((Op₁ + (3*I)))&#39;
+    Op₁.backw(Op₂.backw(Op₂.forw(Op₁.forw(data))))</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p>...but <em>not</em> with addition or substraction:</p><pre class="language-julia"><code class="language-julia">(Op₁ + 3I)&#39; * data</code></pre><pre class="language-none"><code class="language-none">Sorry, I don&#39;t know how to calculate the adjoint of (Op₁ + (3*I))
 
 
 
@@ -28,22 +28,18 @@ Stacktrace:
 
  [1] error(::String) at ./error.jl:33
 
- [2] getPlanAddSub(::FunctionOperators.FunctionOperatorComposite{Float64}, ::FunctionOperators.Buffer, ::Bool, ::String, ::Symbol, ::Array{FunctionOperators.Buffer,1}) at /home/hakkelt/csmri/FunctionOperators/src/getPlan.jl:91
+ [2] adjoint(::FunctionOperators.FunctionOperatorComposite{Float64}) at /home/hakkelt/csmri/FunctionOperators/src/BuildCompTree.jl:74
 
- [3] getPlan at /home/hakkelt/csmri/FunctionOperators/src/getPlan.jl:117 [inlined]
-
- [4] *(::FunctionOperators.FunctionOperatorComposite{Float64}, ::Array{Float64,3}) at /home/hakkelt/csmri/FunctionOperators/src/mul.jl:37
-
- [5] top-level scope at In[12]:1</code></pre><p>You can store a combination of some operators, and apply it later to data:</p><pre class="language-julia"><code class="language-julia">comb_OP = 5I * Op₁
+ [3] top-level scope at In[12]:1</code></pre><p>You can store a combination of some operators, and apply it later to data:</p><pre class="language-julia"><code class="language-julia">comb_OP = 5I * Op₁
 comb_OP&#39; * comb_OP * data == (5I * Op₁)&#39; * (5I * Op₁) * data ==
     Op₁.backw(conj(5)*(5*Op₁.forw(data)))</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p><em>Note that adjoint operation of scaling by a constant (in this case: 5) is the scaling by the conjugate of the constant (which is equal to the original constant in case of real numbers).</em></p><h2><a class="nav-anchor" id="Performance-1" href="#Performance-1">Performance</a></h2><p>Unfortunately, our naive approach above allocates a lot of memory and is quite slow (at least compared to speed we can possibly achieve)...</p><pre class="language-julia"><code class="language-julia">@benchmark Op₂*(Op₁ - 2.5*I)*Op₁&#39;*data</code></pre><pre class="language-output"><code class="language-output">BenchmarkTools.Trial: 
-  memory estimate:  858.32 MiB
-  allocs estimate:  273
+  memory estimate:  823.99 MiB
+  allocs estimate:  326
   --------------
-  minimum time:     403.985 ms (43.65% GC)
-  median time:      404.672 ms (43.74% GC)
-  mean time:        411.888 ms (44.73% GC)
-  maximum time:     476.583 ms (52.21% GC)
+  minimum time:     382.087 ms (43.43% GC)
+  median time:      393.541 ms (45.07% GC)
+  mean time:        393.536 ms (45.11% GC)
+  maximum time:     405.816 ms (46.79% GC)
   --------------
   samples:          13
   evals/sample:     1</code></pre><p>A possible reason is that <code>Op₂</code> accesses a global variable, and it is considered to be a bad practice. (<em>See: <a href="https://docs.julialang.org/en/v1/manual/performance-tips/index.html">Performance Tips</a></em>)</p><p>We can avoid that by wrapping the definition of <code>Op₂</code> with a function:</p><pre class="language-julia"><code class="language-julia">function getOp₂()
@@ -57,15 +53,15 @@ Op₂ = getOp₂()</code></pre><pre class="language-output"><code class="languag
     Name: Op₂
     Input dimensions: (300, 300, 50)
     Output dimensions: (300, 300, 50, 10)</code></pre><pre class="language-julia"><code class="language-julia">@benchmark Op₂*(Op₁ - 2.5*I)*Op₁&#39;*data</code></pre><pre class="language-output"><code class="language-output">BenchmarkTools.Trial: 
-  memory estimate:  858.32 MiB
-  allocs estimate:  271
+  memory estimate:  823.99 MiB
+  allocs estimate:  324
   --------------
-  minimum time:     332.751 ms (31.70% GC)
-  median time:      406.551 ms (43.91% GC)
-  mean time:        407.104 ms (44.01% GC)
-  maximum time:     479.131 ms (52.43% GC)
+  minimum time:     307.964 ms (29.89% GC)
+  median time:      309.015 ms (29.95% GC)
+  mean time:        324.941 ms (33.36% GC)
+  maximum time:     407.029 ms (46.81% GC)
   --------------
-  samples:          13
+  samples:          16
   evals/sample:     1</code></pre><p>Well, it didn&#39;t solved our problem... In fact, the main reason of slowness is the excessive memory allocations; namely, all the intermediate results allocates a new array.</p><p>We can avoid that by defining the <code>forw</code> and <code>backw</code> function a bit differently: They can also accept two arguments, where the first is a preallocated buffer (with appropriate size) that is supposed to hold the output of the operation:</p><pre class="language-julia"><code class="language-julia">function getBufferedOps()
     Op₁ = FunctionOperator{Float64}(name=&quot;Op₁&quot;,
         forw = (buffer, x) -&gt; buffer .= x.^2,
@@ -79,13 +75,13 @@ Op₂ = getOp₂()</code></pre><pre class="language-output"><code class="languag
     Op₁, Op₂
 end
 bOp₁, bOp₂ = getBufferedOps()</code></pre><pre class="language-output"><code class="language-output">(FunctionOperator{Float64}(Op₁, (300, 300, 50), (300, 300, 50)), FunctionOperator{Float64}(Op₂, (300, 300, 50), (300, 300, 50, 10)))</code></pre><pre class="language-julia"><code class="language-julia">@benchmark bOp₂*(bOp₁ - 2.5*I)*bOp₁&#39;*data</code></pre><pre class="language-output"><code class="language-output">BenchmarkTools.Trial: 
-  memory estimate:  446.33 MiB
-  allocs estimate:  261
+  memory estimate:  412.00 MiB
+  allocs estimate:  318
   --------------
-  minimum time:     220.938 ms (6.25% GC)
-  median time:      297.214 ms (30.42% GC)
-  mean time:        292.882 ms (29.40% GC)
-  maximum time:     297.569 ms (30.57% GC)
+  minimum time:     197.790 ms (0.47% GC)
+  median time:      288.367 ms (31.57% GC)
+  mean time:        283.269 ms (30.41% GC)
+  maximum time:     289.291 ms (31.72% GC)
   --------------
   samples:          18
   evals/sample:     1</code></pre><p>Better, but it still should be much faster...</p><h4><a class="nav-anchor" id="Let&#39;s-have-a-look-at-what-is-under-the-hood!-1" href="#Let&#39;s-have-a-look-at-what-is-under-the-hood!-1">Let&#39;s have a look at what is under the hood!</a></h4><p>When we combine operators, nothing special happens, just a wrapper object is created that defines the connections between the operators:</p><pre class="language-julia"><code class="language-julia">Op₂*(Op₁ - 2.5*I)*Op₁&#39;</code></pre><pre class="language-output"><code class="language-output">FunctionOperatorComposite with eltype Float64
@@ -95,37 +91,28 @@ bOp₁, bOp₂ = getBufferedOps()</code></pre><pre class="language-output"><code
     Plan: no plan</code></pre><p><em>Note the last last line: &quot;Plan: no plan&quot; ⟶ it is going to have a significance later...</em></p><p>The real magic happens when we apply this composite operator to data. To see what is going on behind the scenes, let&#39;s enable verbosity.</p><pre class="language-julia"><code class="language-julia">FO_settings.verbose = true</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p>Now, we can see, how this composite operators work: When we apply it to data, it creates a function that aggregates the functionality of all combined operators, and preallocates buffers for the intermediate results.</p><pre class="language-julia"><code class="language-julia">Op₂*(Op₁ - 2.5*I)*Op₁&#39; * data;</code></pre><pre class="language-output"><code class="language-output">Allocation of buffer1, size: (300, 300, 50, 10)
 Allocation of buffer2, size: (300, 300, 50)
 Allocation of buffer3, size: (300, 300, 50)
-Allocation of buffer4, size: (300, 300, 50)
-Plan calculated: buffer1 .= Op₂.forw((buffer2 .= Op₁.backw(x); broadcast!(-, buffer3, Op₁.forw(buffer2), broadcast!(*, buffer4, 2.5, buffer2))))</code></pre><p>On the other hand, <code>bOp₁</code> and <code>bOp₂</code> has a bit different aggregated function:</p><pre class="language-julia"><code class="language-julia">bOp₂*(bOp₁ - 2.5*I) * bOp₁&#39; * data;</code></pre><pre class="language-output"><code class="language-output">Allocation of buffer1, size: (300, 300, 50, 10)
+Plan calculated: buffer1 .= Op₂.forw((buffer2 .= Op₁.backw(x); broadcast!(-, buffer3, Op₁.forw(buffer2), broadcast!(*, buffer3, 2.5, buffer2))))</code></pre><p>On the other hand, <code>bOp₁</code> and <code>bOp₂</code> has a bit different aggregated function:</p><pre class="language-julia"><code class="language-julia">bOp₂*(bOp₁ - 2.5*I) * bOp₁&#39; * data;</code></pre><pre class="language-output"><code class="language-output">Allocation of buffer1, size: (300, 300, 50, 10)
 Allocation of buffer2, size: (300, 300, 50)
 Allocation of buffer3, size: (300, 300, 50)
-Allocation of buffer4, size: (300, 300, 50)
-Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer4, 2.5, buffer2))))</code></pre><p>The good thing is that the plan (along with the preallocated buffers) is cached, so if we save the combined operator to a variable, then the plan is created only once. See the difference:</p><pre class="language-julia"><code class="language-julia">bOp₂*(bOp₁ - 2.5*I) * bOp₁&#39; * data
+Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer2, 2.5, buffer2))))</code></pre><p>The good thing is that the plan (along with the preallocated buffers) is cached, so if we save the combined operator to a variable, then the plan is created only once. See the difference:</p><pre class="language-julia"><code class="language-julia">bOp₂*(bOp₁ - 2.5*I) * bOp₁&#39; * data
 bOp₂*(bOp₁ - 2.5*I) * bOp₁&#39; * data;</code></pre><pre class="language-output"><code class="language-output">Allocation of buffer1, size: (300, 300, 50, 10)
 Allocation of buffer2, size: (300, 300, 50)
 Allocation of buffer3, size: (300, 300, 50)
-Allocation of buffer4, size: (300, 300, 50)
-Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer4, 2.5, buffer2))))
+Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer2, 2.5, buffer2))))
 Allocation of buffer1, size: (300, 300, 50, 10)
 Allocation of buffer2, size: (300, 300, 50)
 Allocation of buffer3, size: (300, 300, 50)
-Allocation of buffer4, size: (300, 300, 50)
-Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer4, 2.5, buffer2))))</code></pre><pre class="language-julia"><code class="language-julia">combined = bOp₂*(bOp₁ - 2.5*I) * bOp₁&#39;
+Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer2, 2.5, buffer2))))</code></pre><pre class="language-julia"><code class="language-julia">combined = bOp₂*(bOp₁ - 2.5*I) * bOp₁&#39;
 combined * data
 combined * data;</code></pre><pre class="language-output"><code class="language-output">Allocation of buffer1, size: (300, 300, 50, 10)
 Allocation of buffer2, size: (300, 300, 50)
 Allocation of buffer3, size: (300, 300, 50)
-Allocation of buffer4, size: (300, 300, 50)
-Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer4, 2.5, buffer2))))
+Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer2, 2.5, buffer2))))
 Allocation of buffer1, size: (300, 300, 50, 10)</code></pre><p>Now we can see that the <code>combined</code> object carries the plan already created:</p><pre class="language-julia"><code class="language-julia">combined</code></pre><pre class="language-output"><code class="language-output">FunctionOperatorComposite with eltype Float64
     Name: Op₂ * (Op₁ - (2.5*I)) * Op₁&#39;
     Input dimensions: (300, 300, 50)
     Output dimensions: (300, 300, 50, 10)
-    Plan: Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer4, 2.5, buffer2))))</code></pre><p>And a side-note here: We can also set this plan manually, if the computed one is wrong, or FunctionOperators was not possible to compute. For example, adjoint of addition:</p><pre class="language-julia"><code class="language-julia">tricky = (bOp₁ + 2.5I)&#39;</code></pre><pre class="language-output"><code class="language-output">FunctionOperatorComposite with eltype Float64
-    Name: ((Op₁ + (2.5*I)))&#39;
-    Input dimensions: (300, 300, 50)
-    Output dimensions: (300, 300, 50)
-    Plan: no plan</code></pre><pre class="language-julia"><code class="language-julia">tricky * data</code></pre><pre class="language-output"><code class="language-output">Allocation of buffer1, size: (300, 300, 50)</code></pre><pre class="language-none"><code class="language-none">Sorry, I don&#39;t know how to calculate the adjoint of ((Op₁ + (2.5*I)))&#39;
+    Plan: Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer2, 2.5, buffer2))))</code></pre><p>And a side-note here: We can also set this plan manually, if the computed one is wrong, or FunctionOperators was not possible to compute. For example, adjoint of addition:</p><pre class="language-julia"><code class="language-julia">tricky = (bOp₁ + 2.5I)&#39;</code></pre><pre class="language-none"><code class="language-none">Sorry, I don&#39;t know how to calculate the adjoint of (Op₁ + (2.5*I))
 
 
 
@@ -133,35 +120,44 @@ Stacktrace:
 
  [1] error(::String) at ./error.jl:33
 
- [2] getPlanAddSub(::FunctionOperators.FunctionOperatorComposite{Float64}, ::FunctionOperators.Buffer, ::Bool, ::String, ::Symbol, ::Array{FunctionOperators.Buffer,1}) at /home/hakkelt/csmri/FunctionOperators/src/getPlan.jl:91
+ [2] adjoint(::FunctionOperators.FunctionOperatorComposite{Float64}) at /home/hakkelt/csmri/FunctionOperators/src/BuildCompTree.jl:74
 
- [3] getPlan at /home/hakkelt/csmri/FunctionOperators/src/getPlan.jl:117 [inlined]
+ [3] top-level scope at In[26]:1</code></pre><pre class="language-julia"><code class="language-julia">tricky * data</code></pre><pre class="language-none"><code class="language-none">UndefVarError: tricky not defined
 
- [4] *(::FunctionOperators.FunctionOperatorComposite{Float64}, ::Array{Float64,3}) at /home/hakkelt/csmri/FunctionOperators/src/mul.jl:37
 
- [5] top-level scope at In[27]:1</code></pre><pre class="language-julia"><code class="language-julia">setPlan(tricky, (buffer, x) -&gt; @.(√(2 - x) / √(2x)), &quot;√(2 - x) / √(2x)&quot;)
-tricky</code></pre><pre class="language-output"><code class="language-output">FunctionOperatorComposite with eltype Float64
-    Name: ((Op₁ + (2.5*I)))&#39;
-    Input dimensions: (300, 300, 50)
-    Output dimensions: (300, 300, 50)
-    Plan: √(2 - x) / √(2x)</code></pre><pre class="language-julia"><code class="language-julia">tricky * data == @. √(2 - data) / √(2data)</code></pre><pre class="language-output"><code class="language-output">Allocation of buffer1, size: (300, 300, 50)</code></pre><pre class="language-output"><code class="language-output">true</code></pre><p>But back to the question of performance: If we preallocate an array for the output manually, and use <code>mul!</code>, then we can save also the reallocation of <code>buffer1</code>:</p><pre class="language-julia"><code class="language-julia">combined = bOp₂ * (bOp₁ - 2.5*I) * bOp₁&#39;
+
+Stacktrace:
+
+ [1] top-level scope at In[27]:1</code></pre><pre class="language-julia"><code class="language-julia">setPlan(tricky, (buffer, x) -&gt; @.(√(2 - x) / √(2x)), &quot;√(2 - x) / √(2x)&quot;)
+tricky</code></pre><pre class="language-none"><code class="language-none">UndefVarError: tricky not defined
+
+
+
+Stacktrace:
+
+ [1] top-level scope at In[28]:1</code></pre><pre class="language-julia"><code class="language-julia">tricky * data == @. √(2 - data) / √(2data)</code></pre><pre class="language-none"><code class="language-none">UndefVarError: tricky not defined
+
+
+
+Stacktrace:
+
+ [1] top-level scope at In[29]:1</code></pre><p>But back to the question of performance: If we preallocate an array for the output manually, and use <code>mul!</code>, then we can save also the reallocation of <code>buffer1</code>:</p><pre class="language-julia"><code class="language-julia">combined = bOp₂ * (bOp₁ - 2.5*I) * bOp₁&#39;
 output = Array{Float64}(undef, 300, 300, 50, 10)
 mul!(output, combined, data)
 mul!(output, combined, data);</code></pre><pre class="language-output"><code class="language-output">buffer1 = &lt;previously allocated&gt;
 Allocation of buffer2, size: (300, 300, 50)
 Allocation of buffer3, size: (300, 300, 50)
-Allocation of buffer4, size: (300, 300, 50)
-Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer4, 2.5, buffer2))))</code></pre><p>If we apply the combined operator multiple times, we can save a lot on computation time:</p><pre class="language-julia"><code class="language-julia">FO_settings.verbose = false
+Plan calculated: buffer1 .= Op₂.forw(buffer1, (buffer2 .= Op₁.backw(buffer2, x); broadcast!(-, buffer3, Op₁.forw(buffer3, buffer2), broadcast!(*, buffer2, 2.5, buffer2))))</code></pre><p>If we apply the combined operator multiple times, we can save a lot on computation time:</p><pre class="language-julia"><code class="language-julia">FO_settings.verbose = false
 @benchmark mul!(output, combined, data)</code></pre><pre class="language-output"><code class="language-output">BenchmarkTools.Trial: 
   memory estimate:  256 bytes
   allocs estimate:  7
   --------------
-  minimum time:     134.560 ms (0.00% GC)
-  median time:      134.714 ms (0.00% GC)
-  mean time:        134.711 ms (0.00% GC)
-  maximum time:     134.846 ms (0.00% GC)
+  minimum time:     131.078 ms (0.00% GC)
+  median time:      131.225 ms (0.00% GC)
+  mean time:        131.239 ms (0.00% GC)
+  maximum time:     131.401 ms (0.00% GC)
   --------------
-  samples:          38
+  samples:          39
   evals/sample:     1</code></pre><p>Let&#39;s compare it to a manually function with identical function and optimizations</p><pre class="language-julia"><code class="language-julia">function getAggregatedFunction()
     weights = [sin((i-j)*l) + 1 for i=1:300, j=1:300, k=1:50, l=1:10]
     buffer2 = Array{Float64}(undef, 300, 300, 50)
@@ -178,10 +174,10 @@ end</code></pre><pre class="language-output"><code class="language-output">getAg
   memory estimate:  128 bytes
   allocs estimate:  2
   --------------
-  minimum time:     134.267 ms (0.00% GC)
-  median time:      134.442 ms (0.00% GC)
-  mean time:        134.434 ms (0.00% GC)
-  maximum time:     134.562 ms (0.00% GC)
+  minimum time:     132.504 ms (0.00% GC)
+  median time:      132.613 ms (0.00% GC)
+  mean time:        132.620 ms (0.00% GC)
+  maximum time:     132.820 ms (0.00% GC)
   --------------
   samples:          38
   evals/sample:     1</code></pre><p>Basically, there is no overhead of using FunctionOperators!</p><h2><a class="nav-anchor" id="Syntactic-sugar-1" href="#Syntactic-sugar-1">Syntactic sugar</a></h2><p>Let&#39;s consider the following function:</p><pre class="language-julia"><code class="language-julia">function foo1(A, bOp₁, bOp₂)
@@ -193,12 +189,12 @@ end</code></pre><pre class="language-output"><code class="language-output">getAg
     end
 end</code></pre><pre class="language-output"><code class="language-output">foo1 (generic function with 1 method)</code></pre><pre class="language-julia"><code class="language-julia">@benchmark foo1(copy(data), bOp₁, bOp₂)</code></pre><pre class="language-output"><code class="language-output">BenchmarkTools.Trial: 
   memory estimate:  6.07 GiB
-  allocs estimate:  1822
+  allocs estimate:  2312
   --------------
-  minimum time:     4.321 s (23.24% GC)
-  median time:      4.323 s (23.22% GC)
-  mean time:        4.323 s (23.22% GC)
-  maximum time:     4.324 s (23.21% GC)
+  minimum time:     4.364 s (23.37% GC)
+  median time:      4.365 s (23.39% GC)
+  mean time:        4.365 s (23.39% GC)
+  maximum time:     4.366 s (23.41% GC)
   --------------
   samples:          2
   evals/sample:     1</code></pre><p>Using the methods we have seen earlier, we can quickly optimize this code, and we get something like that:</p><pre class="language-julia"><code class="language-julia">function foo2(A, bOp₁, bOp₂)
@@ -216,13 +212,13 @@ end</code></pre><pre class="language-output"><code class="language-output">foo1 
         A ./= maximum(mul!(buffer2, bOp₂, A))
     end
 end</code></pre><pre class="language-output"><code class="language-output">foo2 (generic function with 1 method)</code></pre><pre class="language-julia"><code class="language-julia">@benchmark foo2(copy(data), bOp₁, bOp₂)</code></pre><pre class="language-output"><code class="language-output">BenchmarkTools.Trial: 
-  memory estimate:  514.99 MiB
-  allocs estimate:  267
+  memory estimate:  515.00 MiB
+  allocs estimate:  316
   --------------
-  minimum time:     2.328 s (3.97% GC)
-  median time:      2.342 s (4.63% GC)
-  mean time:        2.341 s (4.52% GC)
-  maximum time:     2.353 s (4.96% GC)
+  minimum time:     2.337 s (4.18% GC)
+  median time:      2.340 s (4.18% GC)
+  mean time:        2.340 s (4.28% GC)
+  maximum time:     2.344 s (4.68% GC)
   --------------
   samples:          3
   evals/sample:     1</code></pre><p>This speedup is pretty much pleasing, but the tradeoff is that the code is much less readable now. To avoid the mess caused by manual optimization, the <code>FunctionOperators</code> library offers the recycle macro (<code>@♻</code>) that does the same automatically using the following markers: <code>🔝</code>, <code>🔃</code>, and <code>@🔃</code>.</p><pre class="language-julia"><code class="language-julia">?@♻</code></pre><p><strong>Recycling macro</strong>: Reduce the number of allocations inside a for loop by preallocation of arrays for the outputs of marked operations. Markers: <code>@♻</code> (<code>\:recycle:</code>), <code>🔝</code> (<code>\:top:</code>), <code>🔃</code> (<code>\:arrows_clockwise:</code>), and <code>@🔃</code></p><p>Macro @♻ should be placed right before a for loop, and then it executes the following substitutions:</p><ul><li><strong>Expressions marked by <code>🔝</code>:</strong></li></ul><p>They are going to be calculated before the loop, the result is stored in a variable, and the expression will be replaced by that variable. It also can be useful when a constant expression is used in the loop, but the idea behind creating that substitution is to allow caching of composite FunctionMatrices. Eg:</p><pre class="language-julia"><code class="language-julia">@♻ for i=1:5
@@ -235,7 +231,7 @@ end</code></pre><p>so that way plan is calculated only once, and also buffers fo
 end</code></pre><p>will be transformed to </p><pre class="language-julia"><code class="language-julia">🔃_1 = A + B
 for i = 1:5
     result = FuncOp₁ * @.(🔃_1 = A + B)
-end</code></pre><p>This transformation first allocates an array named <code>🔃_1</code>, and then in every iteration it is recalculated, saved to <code>🔃_1</code>, and the this value is used for the rest of the operation (i.e.: <code>FuncOp₁ * 🔃_1</code>. Note that <code>@.</code> macro is inserted before the inline assignment. This is needed otherwise <code>A + B</code> would allocate a new array before it is stored in <code>🔃_1</code>. <strong>Warning!</strong> It can break your code, e.g. @.(🔃<em>1 = A * B) ≠ (🔃</em>1 = A * B) {matrix multiplication vs. elementwise multiplication}! On the other hand, when the marked expression consists only a multiplication, then it is transformed into a call of <code>mul!</code>. Eg:</p><pre class="language-julia"><code class="language-julia">@♻ for i=1:5
+end</code></pre><p>This transformation first allocates an array named <code>🔃_1</code>, and then in every iteration it is recalculated, saved to <code>🔃_1</code>, and the this value is used for the rest of the operation (i.e.: <code>FuncOp₁ * 🔃_1</code>. Note that <code>@.</code> macro is inserted before the inline assignment. This is needed otherwise <code>A + B</code> would allocate a new array before it is stored in <code>🔃_1</code>. <strong>Warning!</strong> It can break your code, e.g. <code>@.(🔃_1 = A * B) ≠ (🔃_1 = A .* B)</code> {matrix multiplication vs. elementwise multiplication}! On the other hand, when the marked expression consists only a multiplication, then it is transformed into a call of <code>mul!</code>. Eg:</p><pre class="language-julia"><code class="language-julia">@♻ for i=1:5
     result = FuncOp₁ * 🔃(A * B)
 end</code></pre><p>will be transformed to </p><pre class="language-julia"><code class="language-julia">🔃_1 = A * B
 for i = 1:5
@@ -268,21 +264,15 @@ end</code></pre><pre class="language-output"><code class="language-output">begin
     end
 end</code></pre><pre class="language-output"><code class="language-output">foo3 (generic function with 1 method)</code></pre><pre class="language-julia"><code class="language-julia">@benchmark foo3(copy(data), bOp₁, bOp₂)</code></pre><pre class="language-output"><code class="language-output">BenchmarkTools.Trial: 
   memory estimate:  618.00 MiB
-  allocs estimate:  410
+  allocs estimate:  459
   --------------
-  minimum time:     2.523 s (4.49% GC)
-  median time:      2.566 s (6.03% GC)
-  mean time:        2.566 s (6.03% GC)
-  maximum time:     2.609 s (7.52% GC)
+  minimum time:     2.529 s (4.48% GC)
+  median time:      2.572 s (6.03% GC)
+  mean time:        2.572 s (6.03% GC)
+  maximum time:     2.616 s (7.53% GC)
   --------------
   samples:          2
-  evals/sample:     1</code></pre><p>It is slightly slower and requires a bit more memory allocations because it can&#39;t detect if a buffer can be reused. But when the loop body consists of a lot of computationally heavy operations, then the difference is mostly negligible.</p><h2><a class="nav-anchor" id="Further-notes-1" href="#Further-notes-1">Further notes</a></h2><h3><a class="nav-anchor" id="Global-settings-1" href="#Global-settings-1">Global settings</a></h3><pre class="language-julia"><code class="language-julia">?FO_settings</code></pre><pre class="language-output"><code class="language-output">search: [0m[1mF[22m[0m[1mO[22m[0m[1m_[22m[0m[1ms[22m[0m[1me[22m[0m[1mt[22m[0m[1mt[22m[0m[1mi[22m[0m[1mn[22m[0m[1mg[22m[0m[1ms[22m</code></pre><p>Object that holds global settings for <code>FunctionOperators</code> library</p><p>Fields:</p><ul><li><code>verbose::Bool</code> If set to true, then allocation information and calculated plan function will be displayed upon creation (i.e., when a composite operator is first used). Default: <code>false</code></li><li><code>macro_verbose::Bool</code> If set to true, then recycling macro (@♻) will print the transformed loop. Default: <code>false</code></li></ul><h3><a class="nav-anchor" id="Equality-operator-1" href="#Equality-operator-1">Equality operator</a></h3><p>Equality check based on name</p><p><strong>HEADS UP!</strong> This works only when operators with the same name has also the same functionality!</p><p>It performs basic arithmetic transformations on the expressions, so it recognizes even some less obvious equalities. The rules it uses:</p><ul><li>Associativity: <span>$op1 * op2 * op3 = (op1 * op2) * op3 = op1 * (op2 * op3)$</span>, <span>$op1 + op2 + op3 = (op1 + op2) + op3 = op1 + (op2 + op3)$</span>, <span>$op1 + (op2 - op3) == (op1 + op2) - op3$</span>, <span>$op1 - (op2 + op3) == (op1 - op2) - op3$</span></li><li>Commutativity: <span>$op1 - op2 - op3 = op1 - op3 - op2$</span>, <span>$op1 + op2 = op2 + op1$</span></li><li>Distributivity: <span>$(op1 + op2) * op3 = op1 * op3 + op2 * op3$</span> (Note that <span>$op1 * (op2 + op3) ≠ op1 * op2 + op1 * op3$</span>)</li></ul><p>In our case, this implies:</p><pre class="language-julia"><code class="language-julia">(bOp₁ + 2.5*I) * bOp₁ == (Op₁ + 2.5*I) * Op₁ == 2.5*I * Op₁ + bOp₁ * Op₁</code></pre><pre class="language-none"><code class="language-none">UndefVarError: I not defined
-
-
-
-Stacktrace:
-
- [1] top-level scope at In[1]:1</code></pre><h3><a class="nav-anchor" id="Superclass-1" href="#Superclass-1">Superclass</a></h3><p>Combination of <code>FunctionOperator</code> objects are type of <code>FunctionOperatorComposite</code>. Both class is subclass of <code>FunOp</code>.</p><pre class="language-julia"><code class="language-julia">bOp₁ isa FunctionOperator,
+  evals/sample:     1</code></pre><p>It is slightly slower and requires a bit more memory allocations because it can&#39;t detect if a buffer can be reused. But when the loop body consists of a lot of computationally heavy operations, then the difference is mostly negligible.</p><h2><a class="nav-anchor" id="Further-notes-1" href="#Further-notes-1">Further notes</a></h2><h3><a class="nav-anchor" id="Global-settings-1" href="#Global-settings-1">Global settings</a></h3><pre class="language-julia"><code class="language-julia">?FO_settings</code></pre><pre class="language-output"><code class="language-output">search: [0m[1mF[22m[0m[1mO[22m[0m[1m_[22m[0m[1ms[22m[0m[1me[22m[0m[1mt[22m[0m[1mt[22m[0m[1mi[22m[0m[1mn[22m[0m[1mg[22m[0m[1ms[22m</code></pre><p>Object that holds global settings for <code>FunctionOperators</code> library</p><p>Fields:</p><ul><li><code>verbose::Bool</code> If set to true, then allocation information and calculated plan function will be displayed upon creation (i.e., when a composite operator is first used). Default: <code>false</code></li><li><code>macro_verbose::Bool</code> If set to true, then recycling macro (@♻) will print the transformed loop. Default: <code>false</code></li></ul><h3><a class="nav-anchor" id="Equality-operator-1" href="#Equality-operator-1">Equality operator</a></h3><p>Equality check based on name</p><p><strong>HEADS UP!</strong> This works only when operators with the same name has also the same functionality!</p><p>It performs basic arithmetic transformations on the expressions, so it recognizes even some less obvious equalities. The rules it uses:</p><ul><li>Associativity: <span>$op1 * op2 * op3 = (op1 * op2) * op3 = op1 * (op2 * op3)$</span>, <span>$op1 + op2 + op3 = (op1 + op2) + op3 = op1 + (op2 + op3)$</span>, <span>$op1 + (op2 - op3) == (op1 + op2) - op3$</span>, <span>$op1 - (op2 + op3) == (op1 - op2) - op3$</span></li><li>Commutativity: <span>$op1 - op2 - op3 = op1 - op3 - op2$</span>, <span>$op1 + op2 = op2 + op1$</span></li><li>Distributivity: <span>$(op1 + op2) * op3 = op1 * op3 + op2 * op3$</span> (Note that <span>$op1 * (op2 + op3) ≠ op1 * op2 + op1 * op3$</span>)</li></ul><p>In our case, this implies:</p><pre class="language-julia"><code class="language-julia">(bOp₁ + 2.5*I) * bOp₁ == (Op₁ + 2.5*I) * Op₁ == 2.5*I * Op₁ + bOp₁ * Op₁</code></pre><pre class="language-output"><code class="language-output">true</code></pre><h3><a class="nav-anchor" id="Superclass-1" href="#Superclass-1">Superclass</a></h3><p>Combination of <code>FunctionOperator</code> objects are type of <code>FunctionOperatorComposite</code>. Both class is subclass of <code>FunOp</code>.</p><pre class="language-julia"><code class="language-julia">bOp₁ isa FunctionOperator,
 bOp₁ isa FunOp,
 bOp₂ * bOp₁ isa FunctionOperator, # false bacause it is FunctionOperatorComposite
 bOp₂ * bOp₁ isa FunOp</code></pre><pre class="language-output"><code class="language-output">(true, true, false, true)</code></pre><pre class="language-julia"><code class="language-julia"></code></pre><footer><hr/><a class="previous" href="../"><span class="direction">Previous</span><span class="title">FunctionOperators.jl</span></a><a class="next" href="../reference/"><span class="direction">Next</span><span class="title">Reference</span></a></footer></article></body></html>
