@@ -5,7 +5,8 @@ jobs:
   include:
     - stage: "Unit test"
       script:
-        - julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd()));
+        - julia --project=docs/ -e 'using Pkg; Pkg.add("BenchmarkTools");
+                                               Pkg.develop(PackageSpec(path=pwd()));
                                                Pkg.instantiate()'
         - julia --code-coverage test/runtests.jl
         - julia test/performance.jl
