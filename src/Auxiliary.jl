@@ -32,63 +32,43 @@ function expand(expr)
             Expr(:call, :*, e1..., e2, e3...)
         # Remove unnecessary parentheses around addition by associativity.
         # Eg: op1 + (op2 + op3) -> op1 + op2 + op3
-        elseif @capture(x, e1__ + (e2_ + e3__)) || @capture(x, (e2_ + e3__) + e1__)
-            Expr(:call, :+, sortExprList([e1..., e2, e3...])...)
-        elseif @capture(x, e1__ + (e2_ + e3__) + e4_) || @capture(x, e4_ + (e2_ + e3__) + e1__)
-            Expr(:call, :+, sortExprList([e1..., e2, e3..., e4])...)
-        # This branch is dedicated only to sort alphabetically addition terms (commutativity)
         elseif @capture(x, e1__ + e2_)
-            Expr(:call, :+, sortExprList([e1..., e2])...)
+            list = [e1..., e2]
+            new_list = []
+            for item in list
+                if @capture(item, E1__ + E2_)
+                    new_list = vcat(new_list, E1, E2)
+                else
+                    push!(new_list, item)
+                end
+            end
+            Expr(:call, :+, sortExprList(new_list)...)
         # Expandion by distributivity. Eg: (op1 ± op2) * op3 -> op1 * op3 ± op2 * op3
         elseif @capture(x, (e1__ + e2_) * (e3_))
             list = sortExprList([e1..., e2])
-            Expr(:call, :+, [Expr(:call, :*, e, e3) for e in list]...)
+            Expr(:call, :+, sortExprList([Expr(:call, :*, e, e3) for e in list])...)
         elseif @capture(x, (e1__ + e2_) * e3__)
             list = sortExprList([e1..., e2])
-            Expr(:call, :+, [Expr(:call, :*, e, e3...) for e in list]...)
-        elseif @capture(x, (e1_ - e2_) * (e3_))
-            Expr(:call, :-, Expr(:call, :*, e1, e3), Expr(:call, :*, e2, e3))
-        elseif @capture(x, (e1_ - e2_) * e3__)
-            Expr(:call, :-, Expr(:call, :*, e1, e3...), Expr(:call, :*, e2, e3...))
-        # Expandion by distributivity -- the tricky case.
-        # Eg: op0 * (op1 ± op2) * op3 -> op0 * (op1 * op3 ± op2 * op3)
+            Expr(:call, :+, sortExprList([Expr(:call, :*, e, e3...) for e in list])...)
         elseif @capture(x, e0__ * (e1__ + e2_) * (e3_))
             list = sortExprList([e1..., e2])
             Expr(:call, :*, e0...,
-                    Expr(:call, :+, [Expr(:call, :*, e, e3) for e in list]...))
+                    Expr(:call, :+, sortExprList([Expr(:call, :*, e, e3) for e in list])...))
         elseif @capture(x, e0_ * (e1__ + e2_) * e3__) && length(e3) > 0
             list = sortExprList([e1..., e2])
             Expr(:call, :*, e0,
-                Expr(:call, :+, [Expr(:call, :*, e, e3...) for e in list]...))
-        elseif @capture(x, e0__ * (e1_ - e2_) * (e3_))
-            Expr(:call, :*, e0...,
-                    Expr(:call, :-, Expr(:call, :*, e1, e3), Expr(:call, :*, e2, e3)))
-        elseif @capture(x, e0_ * (e1_ - e2_) * e3__)
-            length(e3) > 0 ?
-                Expr(:call, :*, e0, Expr(:call, :-,
-                    Expr(:call, :*, e1, e3...), Expr(:call, :*, e2, e3...))) : x
-        # Sort alphabetically substraction terms by the substraction commutativity
-        # Eg: op1 - op2 - op3 == op1 - op3 - op2
-        elseif @capture(x, (e1_ - e2_) - e3_)
-            e2, e3 = sortExprList([e2, e3])
-            Expr(:call, :-, Expr(:call, :-, e1, e2), e3)
-        # Expand by addition-substraction associativity.
-        # Eg. (op1 + op2 + op3) - op4 -> op1 + op2 + op3 - op4
-        elseif @capture(x, (e1_ + e2__) - e3_)
-            e = sortExprList([e1, e2...])
-            Expr(:call, :+, e[1:end-1]..., Expr(:call, :-, e[end], e3))
-        # Expand by substraction-addition associativity.
-        # Eg. op1 - (op2 + op3) -> op1 - op2 - op3
-        elseif @capture(x, e1_ - (e2__ + e3_))
-            e = e1
-            for e2_item in e2
-                e = Expr(:call, :-, e, e2_item)
-            end
-            Expr(:call, :-, e, e3)
-        # Expand by substraction-substraction associativity.
-        # Eg. op1 - (op2 - op3) -> op1 - op2 + op3
-        elseif @capture(x, e1_ - (e2_ - e3_))
-            Expr(:call, :+, Expr(:call, :-, e1, e2), e3)
+                Expr(:call, :+, sortExprList([Expr(:call, :*, e, e3...) for e in list])...))
+        # Substraction as negation
+        elseif @capture(x, -(e1_ * e2__))
+            Expr(:call, :*, Expr(:call, :-, e1), e2...)
+        elseif @capture(x, -(e1_ + e2__))
+            Expr(:call, :+, Expr(:call, :-, e1), [Expr(:call, :-, e) for e in e2]...)
+        elseif @capture(x, -(e1_ - e2_))
+            Expr(:call, :+, Expr(:call, :-, e1), e2)
+        elseif @capture(x, - -e2_)
+            e2
+        elseif @capture(x, e1_ - e2_)
+            Expr(:call, :+, e1, Expr(:call, :-, e2))
         else
             x
         end
@@ -100,7 +80,7 @@ function normalizeExpression(str)
     expr = Meta.parse(str) # I use the Julia parser to parse my simple arithmetical expressions
     # Not too elegant solution, I know...
     # But even complicated expressions can be fully expanded within a couple of iterations
-    for i = 1:20
+    for i = 1:30
         new_expr = expand(expr)
         string(new_expr) == string(expr) && break
         expr = new_expr

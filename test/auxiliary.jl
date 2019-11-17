@@ -27,7 +27,7 @@ using FunctionOperators, LinearAlgebra, Test
                 normE("A * B * C * (E * (D + E) - F * (D + E))")
         @test normE("A - (B - C)") == normE("A - B + C") == normE("C + A - B")
         # Well, I need to completely reorganize my code to support the following case, so I don't support it :(
-        # @test normE("A + B + (C - E)") == normE("(A + B + C) - E")
+        @test normE("A + B + (C - E)") == normE("(A + B + C) - E")
     end
     @testset "Equality" begin
         Op₁ = FunctionOperator{Float64}("Op₁", x -> x, x -> x, (1,), (1,))
