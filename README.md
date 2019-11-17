@@ -117,7 +117,7 @@ BenchmarkTools.Trial:
   evals/sample:     1
 ```
   
-For more detailed description, see [tutorial](https://github.com/hakkelt/FunctionOperators.jl/blob/master/examples/Tutorial.ipynb).
+For more detailed description, see [tutorial](https://hakkelt.github.io/FunctionOperators.jl/latest/Tutorial/).
 
 ## Similar packages
 
