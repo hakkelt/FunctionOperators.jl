@@ -13,6 +13,7 @@ setPlan(FO::FunctionOperatorComposite, f::Function, f_str::String = "manually de
     @assert nargs(f) == 3  "plan must accept two arguments!"
     FO.plan_function = f
     FO.plan_string = f_str
+    FO
 end
 
 # --------- Equality check -----------

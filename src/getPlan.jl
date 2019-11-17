@@ -102,6 +102,7 @@ end
 # "In case of addition/substraction of operators..."
 getPlanAddSub(FO::FunctionOperatorComposite, buffer::Buffer, adjoint::Bool, inside::String,
         op::Symbol, storage::Array{Buffer,1}) = begin
+    adjoint && error("Sorry, I don't know how to calculate the adjoint of $(FO.name)")
     buffer.available = false
     inBuff = newBuffer(eltype(FO), FO.inDims, storage)
     inBuff.available = false

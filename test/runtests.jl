@@ -1,5 +1,6 @@
 include("constructors.jl")
 include("helpers.jl")
+include("show.jl")
 include("auxiliary.jl")
 include("buildCompTreeGetPlan.jl")
 # include("performance.jl")

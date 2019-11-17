@@ -71,7 +71,6 @@ Base.:adjoint(FO::FunctionOperator) =
     FunctionOperator(FO, adjoint = !FO.adjoint, inDims = FO.outDims, outDims = FO.inDims)
 
 Base.:adjoint(FO::FunctionOperatorComposite{T}) where {T} = begin
-    FO.hasAddOrSub && error("Sorry, I don't know how to calculate the adjoint of $(FO.name)")
     FunctionOperatorComposite(FO, name = "("*getName(FO)*")'", adjoint = !FO.adjoint,
         inDims = FO.outDims, outDims = FO.inDims, plan_function = noplan)
 end

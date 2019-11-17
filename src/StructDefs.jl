@@ -48,7 +48,6 @@ Arguments
         (x) -> error("backward function not implemented for "*name) :
         (buffer, x) -> error("backward function not implemented for "*name))
     adjoint::Bool = false # adjoint operator creates a new object where this field is negated
-    hasAddOrSub::Bool = false # does it contain addition or substraction?
     mutating::Bool = checkMutating(forw) # true if forw has two arguments
     scaling::Bool = false # true if created from LinearAlgebra.UniformScaling object
     getScale::Function = () -> () # This is used only if scaling field is true
@@ -91,7 +90,6 @@ end
     right::FunOp
     operator::Symbol
     adjoint::Bool = false
-    hasAddOrSub::Bool = operator in [:+, :-] || left.hasAddOrSub || right.hasAddOrSub
     mutating::Bool = operator in [:+, :-] || left.mutating || right.mutating
     inDims::Tuple{Vararg{Int}} = right.inDims
     outDims::Tuple{Vararg{Int}} = left.outDims

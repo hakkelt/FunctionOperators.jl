@@ -41,6 +41,17 @@ using FunctionOperators, LinearAlgebra, Test
         @test Op₁ + Op₂ == Op₂ + Op₁
         @test Op₁ * Op₂ == Op₁ * Op₂
     end
+    @testset "SetPlan" begin
+        Op₁ = FunctionOperator{Float64}("Op₁", x -> x, x -> x, (1,), (1,))
+        tricky = (Op₁ + 2.5I)'
+        @test_throws ErrorException tricky * [5.]
+        setPlan(tricky, (buffer, x) -> broadcast!(*, buffer, x, 2), "2x")
+        @test tricky * [5.] == [10.]
+        @test setPlan((Op₁ + 2.5I)', (buffer, x) -> broadcast!(*, buffer, x, 2)) * [5.] == [10.]
+        @test repr("text/plain", tricky) == "FunctionOperatorComposite with eltype Float64\n    Name: ((Op₁ + (2.5*I)))'\n    Input dimensions: (1,)\n    Output dimensions: (1,)\n    Plan: 2x"
+        setPlan(tricky, (buffer, x) -> broadcast!(*, buffer, x, 2))
+        @test repr("text/plain", tricky) == "FunctionOperatorComposite with eltype Float64\n    Name: ((Op₁ + (2.5*I)))'\n    Input dimensions: (1,)\n    Output dimensions: (1,)\n    Plan: manually defined"
+    end
     @testset "Macro" begin
         @testset "🔝 marker" begin
             result, var1, var2, var3 = rand(4)

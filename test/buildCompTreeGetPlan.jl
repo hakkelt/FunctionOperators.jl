@@ -26,6 +26,8 @@ using FunctionOperators, LinearAlgebra, Test
         (b,x) -> b.=-x.^3, (b,x) -> b.=-cbrt.(x), (10,10,5), (10,10,5))
     bOp₆ = FunctionOperator{Float64}("bOp₆",
         (b,x) -> b.=x.+5, (b,x) -> b.=x.-5, (10,10,5), (10,10,5))
+    data₁ = [sin(i+j) for i=1:10, j=1:10]
+    data₂ = [sin(i+j+k) for i=1:10, j=1:10, k=1:5]
     @testset "Fidelity (manually checked)" begin
         @test Op₁ * (ones(10,10)*2) == ones(10,10)*8
         @test Op₁' * (ones(10,10)*8) == ones(10,10)*2
@@ -45,6 +47,15 @@ using FunctionOperators, LinearAlgebra, Test
         @test (Op₅ - 3I) * (ones(10,10,5)*2) == Op₅ * (ones(10,10,5)*2) - (ones(10,10,5)*6)
         @test (3I + Op₅) * (ones(10,10,5)*2) == (ones(10,10,5)*6) + Op₅ * (ones(10,10,5)*2)
         @test (3I - Op₅) * (ones(10,10,5)*2) == (ones(10,10,5)*6) - Op₅ * (ones(10,10,5)*2)
+        output₁ = zeros(10, 10)
+        @test Op₁ * (ones(10,10)*2) == mul!(output₁, Op₁, ones(10,10)*2)
+        @test Op₁' * (ones(10,10)*2) == mul!(output₁, Op₁', ones(10,10)*2)
+        @test Op₁ * bOp₂ * (ones(10,10)*2) == mul!(output₁, Op₁ * bOp₂, ones(10,10)*2)
+        @test (Op₁ * bOp₂)' * (ones(10,10)*2) == mul!(output₁, (Op₁ * bOp₂)', ones(10,10)*2)
+        combined = bOp₁ * Op₂
+        @test mul!(output, combined, ones(10,10)*2) == mul!(output, combined, ones(10,10)*2)
+        combined = (bOp₁ * Op₂)'
+        @test mul!(output, combined, ones(10,10)*2) == mul!(output, combined, ones(10,10)*2)
     end
     @testset "Adjoint of addition/substraction" begin
         @test_throws ErrorException (Op₃ + Op₄)' * ones(10,10,5)
@@ -143,7 +154,7 @@ using FunctionOperators, LinearAlgebra, Test
             end
             function combineAdjoint(item1)
                 if item1.hasAddOrSub
-                    @test_throws ErrorException item1.op'
+                    @test_throws ErrorException item1.op' * (item1.outDims == size(data₁) ? data₁ : data₂)
                     missing
                 else
                     (op = item1.op',
@@ -203,8 +214,6 @@ using FunctionOperators, LinearAlgebra, Test
         end
         @testset "Fidelity" begin
             global list
-            data₁ = [sin(i+j) for i=1:10, j=1:10]
-            data₂ = [sin(i+j+k) for i=1:10, j=1:10, k=1:5]
             getName(op) = op isa FunctionOperator && op.adjoint ? op.name*"'" : op.name
             normName(str) = replace(FunctionOperators.normalizeExpression(getName(str)), "b" => "")
             results = [(name = getName(op.op),
