@@ -2,6 +2,7 @@
 
 [![](https://img.shields.io/badge/docs-latest-blue.svg)](https://hakkelt.github.io/FunctionOperators.jl/latest/)
 [![Build Status](https://travis-ci.com/hakkelt/FunctionOperators.jl.svg?branch=master)](https://travis-ci.com/hakkelt/FunctionOperators.jl)
+[![codecov](https://codecov.io/gh/hakkelt/FunctionOperators.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/hakkelt/FunctionOperators.jl)
 
 ## Motivation
 
