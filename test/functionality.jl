@@ -1,6 +1,6 @@
 using FunctionOperators, LinearAlgebra, Test
 
-@testset "BuildCompTree.jl + getPlan.jl" begin
+@testset "Functionality test" begin
     Op₁ = FunctionOperator{Float64}("Op₁",
         x -> x .^ 3, x -> cbrt.(x), (10,10), (10,10))
     Op₂ = FunctionOperator{Float64}("Op₂",
@@ -47,11 +47,11 @@ using FunctionOperators, LinearAlgebra, Test
         @test (Op₅ - 3I) * (ones(10,10,5)*2) == Op₅ * (ones(10,10,5)*2) - (ones(10,10,5)*6)
         @test (3I + Op₅) * (ones(10,10,5)*2) == (ones(10,10,5)*6) + Op₅ * (ones(10,10,5)*2)
         @test (3I - Op₅) * (ones(10,10,5)*2) == (ones(10,10,5)*6) - Op₅ * (ones(10,10,5)*2)
-        output₁ = zeros(10, 10)
-        @test Op₁ * (ones(10,10)*2) == mul!(output₁, Op₁, ones(10,10)*2)
-        @test Op₁' * (ones(10,10)*2) == mul!(output₁, Op₁', ones(10,10)*2)
-        @test Op₁ * bOp₂ * (ones(10,10)*2) == mul!(output₁, Op₁ * bOp₂, ones(10,10)*2)
-        @test (Op₁ * bOp₂)' * (ones(10,10)*2) == mul!(output₁, (Op₁ * bOp₂)', ones(10,10)*2)
+        output = zeros(10, 10)
+        @test Op₁ * (ones(10,10)*2) == mul!(output, Op₁, ones(10,10)*2)
+        @test Op₁' * (ones(10,10)*2) == mul!(output, Op₁', ones(10,10)*2)
+        @test Op₁ * bOp₂ * (ones(10,10)*2) == mul!(output, Op₁ * bOp₂, ones(10,10)*2)
+        @test (Op₁ * bOp₂)' * (ones(10,10)*2) == mul!(output, (Op₁ * bOp₂)', ones(10,10)*2)
         combined = bOp₁ * Op₂
         @test mul!(output, combined, ones(10,10)*2) == mul!(output, combined, ones(10,10)*2)
         combined = (bOp₁ * Op₂)'
