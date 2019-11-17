@@ -1,6 +1,5 @@
 include("constructors.jl")
 include("helpers.jl")
-include("normalizeExpression.jl")
+include("auxiliary.jl")
 include("buildCompTreeGetPlan.jl")
-include("macro.jl")
 # include("performance.jl")

@@ -20,8 +20,7 @@ end
 # Expand arithmetic expression trees
 function expand(expr)
     sortExprList(ExprList) = sort(ExprList, by = x -> string(x), rev = true)
-    adj(e) = e isa Expr && string(e.head) == "'" ? e.args[1] :
-        Expr(Symbol("'"), e)
+    adj(e) = (e isa Expr && string(e.head) == "'") ? e.args[1] : Expr(Symbol("'"), e)
     MacroTools.postwalk(x -> begin
         # Adjoint expansion. Eg: (op1 * op2)' -> op2' * op1'
         if @capture(x, (e1_ * e2__)')
@@ -33,14 +32,10 @@ function expand(expr)
             Expr(:call, :*, e1..., e2, e3...)
         # Remove unnecessary parentheses around addition by associativity.
         # Eg: op1 + (op2 + op3) -> op1 + op2 + op3
-        elseif @capture(x, e1__ + (e2_ + e3__))
+        elseif @capture(x, e1__ + (e2_ + e3__)) || @capture(x, (e2_ + e3__) + e1__)
             Expr(:call, :+, sortExprList([e1..., e2, e3...])...)
-        elseif @capture(x, (e1_ + e2__) + e3__)
-            Expr(:call, :+, sortExprList([e1, e2..., e3...])...)
-        elseif @capture(x, e1__ + (e2_ + e3__) + e4_)
+        elseif @capture(x, e1__ + (e2_ + e3__) + e4_) || @capture(x, e4_ + (e2_ + e3__) + e1__)
             Expr(:call, :+, sortExprList([e1..., e2, e3..., e4])...)
-        elseif @capture(x, e1_ + (e2_ + e3__) + e4__)
-            Expr(:call, :+, sortExprList([e1, e2, e3..., e4...])...)
         # This branch is dedicated only to sort alphabetically addition terms (commutativity)
         elseif @capture(x, e1__ + e2_)
             Expr(:call, :+, sortExprList([e1..., e2])...)
@@ -61,14 +56,10 @@ function expand(expr)
             list = sortExprList([e1..., e2])
             Expr(:call, :*, e0...,
                     Expr(:call, :+, [Expr(:call, :*, e, e3) for e in list]...))
-        elseif @capture(x, e0_ * (e1__ + e2_) * e3__)
-            if length(e3) > 0
-                list = sortExprList([e1..., e2])
-                Expr(:call, :*, e0,
-                    Expr(:call, :+, [Expr(:call, :*, e, e3...) for e in list]...))
-            else
-                x
-            end
+        elseif @capture(x, e0_ * (e1__ + e2_) * e3__) && length(e3) > 0
+            list = sortExprList([e1..., e2])
+            Expr(:call, :*, e0,
+                Expr(:call, :+, [Expr(:call, :*, e, e3...) for e in list]...))
         elseif @capture(x, e0__ * (e1_ - e2_) * (e3_))
             Expr(:call, :*, e0...,
                     Expr(:call, :-, Expr(:call, :*, e1, e3), Expr(:call, :*, e2, e3)))
@@ -81,6 +72,11 @@ function expand(expr)
         elseif @capture(x, (e1_ - e2_) - e3_)
             e2, e3 = sortExprList([e2, e3])
             Expr(:call, :-, Expr(:call, :-, e1, e2), e3)
+        # Expand by addition-substraction associativity.
+        # Eg. (op1 + op2 + op3) - op4 -> op1 + op2 + op3 - op4
+        elseif @capture(x, (e1_ + e2__) - e3_)
+            e = sortExprList([e1, e2...])
+            Expr(:call, :+, e[1:end-1]..., Expr(:call, :-, e[end], e3))
         # Expand by substraction-addition associativity.
         # Eg. op1 - (op2 + op3) -> op1 - op2 - op3
         elseif @capture(x, e1_ - (e2__ + e3_))
@@ -93,10 +89,6 @@ function expand(expr)
         # Eg. op1 - (op2 - op3) -> op1 - op2 + op3
         elseif @capture(x, e1_ - (e2_ - e3_))
             Expr(:call, :+, Expr(:call, :-, e1, e2), e3)
-        # Expand by addition-substraction associativity.
-        # Eg. op1 + (op2 - op3) -> op1 + op2 - op3
-        elseif @capture(x, e1__ + (e2_ - e3_))
-            Expr(:call, :-, Expr(:call, :+, e1..., e2), e3)
         else
             x
         end
