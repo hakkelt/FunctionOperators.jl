@@ -5,12 +5,11 @@ jobs:
   include:
     - stage: "Unit test"
       script:
-        - julia -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
-        - julia --code-coverage test/runtests.jl
-        - julia -e 'using Pkg; Pkg.add("BenchmarkTools"); include("test/performance.jl")'
+        - julia --project=test/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+        - julia --project=test/ --code-coverage test/runtests.jl
+        - julia --project=test/ test/performance.jl
       after_success:
-        - julia -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate();
-                    Pkg.add("Coverage"); using Coverage; Coveralls.submit(process_folder())'
+        - julia --project=test/ -e 'using Pkg; cd(Pkg.dir("FunctionOperators")); using Coverage; Coveralls.submit(process_folder())'
     - stage: "Documentation"
       before_install:
         - sudo apt-get -y install pandoc
