@@ -14,14 +14,14 @@ Base.:+(FO1::FunOp, FO2::FunOp) = begin
     FunctionOperatorComposite(FO1, FO2,  :+)
 end
 
-Base.:+(FO1::FunOp, S::LinearAlgebra.UniformScaling) = begin
-    assertAddDimScaling(FO1, S)
-    FunctionOperatorComposite(FO1, createScalingForAddSub(FO1, S),  :+)
+Base.:+(FO::FunOp, S::LinearAlgebra.UniformScaling) = begin
+    assertAddDimScaling(FO, S)
+    FunctionOperatorComposite(FO, createScalingForAddSub(FO, S),  :+)
 end
 
-Base.:+(S::LinearAlgebra.UniformScaling, FO2::FunOp) = begin
-    assertAddDimScaling(FO2, S)
-    FunctionOperatorComposite(createScalingForAddSub(FO2, S), FO2,  :+)
+Base.:+(S::LinearAlgebra.UniformScaling, FO::FunOp) = begin
+    assertAddDimScaling(FO, S)
+    FunctionOperatorComposite(createScalingForAddSub(FO, S), FO,  :+)
 end
 
 Base.:-(FO1::FunOp, FO2::FunOp) = begin
@@ -30,14 +30,14 @@ Base.:-(FO1::FunOp, FO2::FunOp) = begin
     FunctionOperatorComposite(FO1, FO2,  :-)
 end
 
-Base.:-(FO1::FunOp, S::LinearAlgebra.UniformScaling) = begin
-    assertAddDimScaling(FO1, S)
-    FunctionOperatorComposite(FO1, createScalingForAddSub(FO1, S),  :-)
+Base.:-(FO::FunOp, S::LinearAlgebra.UniformScaling) = begin
+    assertAddDimScaling(FO, S)
+    FunctionOperatorComposite(FO, createScalingForAddSub(FO, S),  :-)
 end
 
-Base.:-(S::LinearAlgebra.UniformScaling, FO2::FunOp) =  begin
-    assertAddDimScaling(FO2, S)
-    FunctionOperatorComposite(createScalingForAddSub(FO2, S), FO2,  :-)
+Base.:-(S::LinearAlgebra.UniformScaling, FO::FunOp) =  begin
+    assertAddDimScaling(FO, S)
+    FunctionOperatorComposite(createScalingForAddSub(FO, S), FO,  :-)
 end
 
 Base.:*(FO1::FunOp, FO2::FunOp) = begin
@@ -52,17 +52,21 @@ Base.:*(FO::FunctionOperator, S::LinearAlgebra.UniformScaling{Bool}) =
 Base.:*(FO::FunctionOperatorComposite, S::LinearAlgebra.UniformScaling{Bool}) =
     FunctionOperatorComposite(FO, name = getName(FO) * " * I")
 
-Base.:*(FO1::FunOp, S::LinearAlgebra.UniformScaling) =
-    FunctionOperatorComposite(FO1, createScalingForMult(FO1, S, FO1.inDims),  :*)
-
 Base.:*(S::LinearAlgebra.UniformScaling{Bool}, FO::FunctionOperator) = 
     FunctionOperator(FO, name = "I * " * getName(FO))
 
 Base.:*(S::LinearAlgebra.UniformScaling{Bool}, FO::FunctionOperatorComposite) = 
     FunctionOperatorComposite(FO, name = "I * " * getName(FO))
 
-Base.:*(S::LinearAlgebra.UniformScaling, FO2::FunOp) =
-    FunctionOperatorComposite(createScalingForMult(FO2, S, FO2.outDims), FO2,  :*)
+Base.:*(FO::FunOp, S::LinearAlgebra.UniformScaling) =
+    FunctionOperatorComposite(FO, createScalingForMult(FO, S, FO.inDims),  :*)
+
+Base.:*(S::LinearAlgebra.UniformScaling, FO::FunOp) =
+    FunctionOperatorComposite(createScalingForMult(FO, S, FO.outDims), FO,  :*)
+
+Base.:*(FO::FunOp, λ::Number) = FO * (λ*I)
+
+Base.:*(λ::Number, FO::FunOp) = (λ*I) * FO
 
 # Adjoint operator creates a new FunctionOperatorComposite object, toggles the adjoint field and
 # switches the input and output dimension constraints (and also voids plan for FunctionOperatorComposite)

@@ -35,6 +35,10 @@ using FunctionOperators, LinearAlgebra, Test
         @test Op₁' * I * (ones(10,10)*8) == ones(10,10)*2
         @test I * Op₁ * (ones(10,10)*2) == ones(10,10)*8
         @test I * Op₁' * (ones(10,10)*8) == ones(10,10)*2
+        @test Op₁ * 2 * (ones(10,10)*2) == ones(10,10)*64
+        @test Op₁' * 2 * (ones(10,10)*4) == ones(10,10)*2
+        @test 2 * Op₁ * (ones(10,10)*2) == ones(10,10)*16
+        @test 2 * Op₁' * (ones(10,10)*8) == ones(10,10)*4
         @test Op₃ * Op₁ * (ones(10,10)*2) == ones(10,10)*8 .* w
         @test (Op₃ * Op₁)' * (ones(10,10)*8 .* w) == Op₁' * Op₃' * (ones(10,10)*8 .* w)
         @test (Op₃ * Op₁)' * (ones(10,10)*8 .* w) == ones(10,10)*2
@@ -62,9 +66,9 @@ using FunctionOperators, LinearAlgebra, Test
             manual_tests()
         end
         @testset "With automatic reshape" begin
-            FO_settings.auto_reshape = true
+            FunctionOperators_global_settings.auto_reshape = true
             manual_tests()
-            FO_settings.auto_reshape = false
+            FunctionOperators_global_settings.auto_reshape = false
         end
     end
     @testset "Adjoint of addition/substraction" begin
