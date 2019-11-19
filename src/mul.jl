@@ -8,21 +8,30 @@
 
 Base.:*(FO::FunctionOperator, A::AbstractArray) = begin
     assertType(FO, A)
-    assertMultDim(FO, A)
+    FunctionOperators_global_settings.auto_reshape ? (A = reshape(A, FO.inDims)) : assertMultDim(FO, A)
     info("Allocation of buffer1, size: $(FO.outDims)")
-    FO.adjoint ?
+    result = FO.adjoint ?
         FO.mutating ? FO.backw(Array{eltype(FO)}(undef, FO.outDims), A) : FO.backw(A) :
         FO.mutating ? FO.forw(Array{eltype(FO)}(undef, FO.outDims), A) : FO.forw(A)
+    FunctionOperators_global_settings.auto_reshape ? reshape(result, FO.outDims) : result
 end
 
 LinearAlgebra.mul!(buffer::AbstractArray, FO::FunctionOperator, A::AbstractArray) = begin
     assertType(FO, A)
     assertTypeBuffer(FO, buffer)
-    assertMultDim(FO, A)
-    assertMultDimBuffer(FO, buffer)
-    FO.adjoint ?
+    orig_buffer = buffer
+    if FunctionOperators_global_settings.auto_reshape
+        A = reshape(A, FO.inDims)
+        buffer = reshape(buffer, FO.outDims)
+    else
+        assertMultDim(FO, A)
+        assertMultDimBuffer(FO, buffer)
+    end
+    result = FO.adjoint ?
         (FO.mutating ? FO.backw(buffer, A) : buffer .= FO.backw(A)) :
         (FO.mutating ? FO.forw(buffer, A) : buffer .= FO.forw(A))
+    (buffer !== result) && (buffer .= result)
+    orig_buffer # buffer might have been reshaped, so we return the un-reshaped version
 end
 
 # When FunctionOperatorComposite is applied to data, the process changes only slightly:
@@ -30,7 +39,7 @@ end
 
 Base.:*(FO::FunctionOperatorComposite, A::AbstractArray) = begin
     assertType(FO, A)
-    assertMultDim(FO, A)
+    FunctionOperators_global_settings.auto_reshape ? (A = reshape(A, FO.inDims)) : assertMultDim(FO, A)
     storage = Array{Buffer,1}(undef, 0)
     buffer1 = newBuffer(eltype(FO), FO.outDims, storage)
     if FO.plan_function == noplan
@@ -38,14 +47,21 @@ Base.:*(FO::FunctionOperatorComposite, A::AbstractArray) = begin
         info("Plan calculated: $(output.name) .= "*FO.plan_string)
         @assert output.name == "buffer1" "Implementation error: Output of computation is written to $(output.name) instead of buffer1"
     end
-    FO.plan_function(buffer1.buffer, A)
+    result = FO.plan_function(buffer1.buffer, A)
+    FunctionOperators_global_settings.auto_reshape ? reshape(result, FO.outDims) : result
 end
 
 LinearAlgebra.mul!(buffer::AbstractArray, FO::FunctionOperatorComposite, A::AbstractArray) = begin
     assertType(FO, A)
     assertType(FO, buffer)
-    assertMultDim(FO, A)
-    assertMultDimBuffer(FO, buffer)
+    orig_buffer = buffer
+    if FunctionOperators_global_settings.auto_reshape
+        A = reshape(A, FO.inDims)
+        buffer = reshape(buffer, FO.outDims)
+    else
+        assertMultDim(FO, A)
+        assertMultDimBuffer(FO, buffer)
+    end
     if FO.plan_function == noplan
         storage = Array{Buffer}(undef, 0)
         buffer1 = Buffer(buffer, "buffer1", 1, true)
@@ -55,5 +71,7 @@ LinearAlgebra.mul!(buffer::AbstractArray, FO::FunctionOperatorComposite, A::Abst
         info(("Plan calculated: $(output.name) .= "*FO.plan_string))
         @assert output.buffer == buffer "Implementation error: Output of computation is written to $(output.name) instead of buffer1"
     end
-    FO.plan_function(buffer, A)
+    result = FO.plan_function(buffer, A)
+    (buffer !== result) && (buffer .= result)
+    orig_buffer # buffer might have been reshaped, so we return the un-reshaped version
 end

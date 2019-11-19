@@ -202,6 +202,6 @@ macro ♻(loop)
     🔝_defs = [:($left = $right) for (left, right) in 🔝s]
     🔃_defs = [:($left = $right) for (left, right) in 🔃s]
     extended_loop = Expr(:block, 🔝_defs..., 🔃_defs..., loop)
-    FO_settings.macro_verbose && println(MacroTools.prewalk(rmlines, extended_loop))
+    FunctionOperators_global_settings.macro_verbose && println(MacroTools.prewalk(rmlines, extended_loop))
     esc(extended_loop)
 end

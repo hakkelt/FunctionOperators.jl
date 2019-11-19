@@ -3,9 +3,9 @@
 # ----------------------------------------------------------
 
 # Used to print memory allocations and the calculated plan
-# Prints nothing if FO_settings.verbose == false
+# Prints nothing if FunctionOperators_global_settings.verbose == false
 info(str::String) =
-    FO_settings.verbose && println(str)
+    FunctionOperators_global_settings.verbose && println(str)
 
 "Determine type of elements of array accepted by this operator"
 Base.eltype(::Type{FunctionOperator{T}}) where {T} = T

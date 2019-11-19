@@ -28,7 +28,7 @@ using FunctionOperators, LinearAlgebra, Test
         (b,x) -> b.=x.+5, (b,x) -> b.=x.-5, (10,10,5), (10,10,5))
     data₁ = [sin(i+j) for i=1:10, j=1:10]
     data₂ = [sin(i+j+k) for i=1:10, j=1:10, k=1:5]
-    @testset "Fidelity (manually checked)" begin
+    function manual_tests()
         @test Op₁ * (ones(10,10)*2) == ones(10,10)*8
         @test Op₁' * (ones(10,10)*8) == ones(10,10)*2
         @test Op₁ * I * (ones(10,10)*2) == ones(10,10)*8
@@ -56,6 +56,16 @@ using FunctionOperators, LinearAlgebra, Test
         @test mul!(output, combined, ones(10,10)*2) == mul!(output, combined, ones(10,10)*2)
         combined = (bOp₁ * Op₂)'
         @test mul!(output, combined, ones(10,10)*2) == mul!(output, combined, ones(10,10)*2)
+    end
+    @testset "Fidelity (manually checked)" begin
+        @testset "Without automatic reshape" begin
+            manual_tests()
+        end
+        @testset "With automatic reshape" begin
+            FO_settings.auto_reshape = true
+            manual_tests()
+            FO_settings.auto_reshape = false
+        end
     end
     @testset "Adjoint of addition/substraction" begin
         @test_throws ErrorException (Op₃ + Op₄)' * ones(10,10,5)

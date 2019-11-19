@@ -81,14 +81,14 @@ macro createReturnValue(left, right, op)
         if FO.left.mutating && !FO.right.mutating
            if $op == +
                ((buffer, x) -> begin
-                    copy!(inBuff.buffer, x);
+                    inBuff.buffer .= x;
                     broadcast!(+, $lBuf, rFunc($rBuf, inBuff.buffer), lFunc($lBuf, inBuff.buffer))
-                            end, lBuffer, "(copy!($(inBuff.name), $inside); broadcast!(+, $($name), $rText, $lText))")
+                            end, lBuffer, "($(inBuff.name) .= $inside; broadcast!(+, $($name), $rText, $lText))")
             else
                ((buffer, x) -> begin
-                    copy!(inBuff.buffer, x);
+                    inBuff.buffer .= x;
                     broadcast!((x,y) -> y-x, $lBuf, rFunc($rBuf, inBuff.buffer), lFunc($lBuf, inBuff.buffer))
-                            end, lBuffer, "(copy!($(inBuff.name), $inside); broadcast!((x,y) -> y-x, , $($name), $rText, $lText))")
+                            end, lBuffer, "($(inBuff.name) .= $inside; broadcast!((x,y) -> y-x, , $($name), $rText, $lText))")
             end
         else
            ((buffer, x) -> begin
