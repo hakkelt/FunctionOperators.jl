@@ -66,8 +66,8 @@ function preprocess(expr_str, arrays, funops, numbers, scalings, extracted_ops, 
                     (sides = extractFunOp(sides, funops, numbers, scalings, extracted_ops, modified))
                 push!(arrays, Expr(:call, :*, sides...))
                 return Expr(:call, :*, sides...)
-            elseif lhs in scalings && all(x -> x in numbers, rhs) ||
-                    lhs in numbers && all(x -> x in scalings, rhs)
+            elseif all(x -> x in numbers || x in scalings, [lhs,rhs...]) && 
+                    any(x -> x in scalings, [lhs,rhs...])
                 push!(scalings, x)
             elseif all(e -> e in numbers, sides)
                 push!(numbers, x)
@@ -118,14 +118,21 @@ end
 function dotify(expr, arrays, numbers)
     MacroTools.postwalk(expr) do x
         if @capture(x, lhs_ + rhs__)
-            if any(x -> x in arrays, [lhs, rhs...])
-                new_expr = multiDot(:(.+), [lhs, rhs...])
+            terms = [lhs, rhs...]
+            if any(x -> x in arrays, terms)
+                new_expr = length(terms) > 1 ? multiDot(:.+, terms) : Expr(:call, :.+, terms[1])
                 push!(arrays, new_expr)
                 return new_expr
             end
         elseif @capture(x, lhs_ - rhs_)
             if lhs in arrays || rhs in arrays
                 new_expr = :($lhs .- $rhs)
+                push!(arrays, new_expr)
+                return new_expr
+            end
+        elseif @capture(x, - rhs_)
+            if rhs in arrays
+                new_expr = :( .- $rhs)
                 push!(arrays, new_expr)
                 return new_expr
             end
@@ -543,7 +550,7 @@ macro recycle(expr)
             end
         end
     end)
-    if_params = [Expr(:if, Expr(:isdefined, var), var, nothing) for var in vars]
+    if_params = [Expr(:if, Expr(:isdefined, var), var, :nothing) for var in vars]
     var_names = map(var -> string(var), vars)
     new_values = gensym("new_values")
     assign_list = [:($var_name in keys($new_values) && 

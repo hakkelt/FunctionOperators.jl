@@ -136,19 +136,22 @@ data = [sin(i+j)^2 for i=1:300, j=1:300]
 
 function foo1(A, bOp₁, bOp₂)
     for i in 1:10
-        @timed C = (bOp₁ - 2.5*I) * bOp₁ * A * A
+        @timed C = (bOp₁ - 2*2.5*I) * bOp₁ * A * A
         B = bOp₁ * (C - 3A)
+        B += A * B * C
         @timed A .= bOp₁ * (100C + 200B)
-        A ./= maximum(bOp₂ * A)
+        A ./= maximum(bOp₂ * +A)
     end
 end
 
 function foo4(A, bOp₁, bOp₂)
+    B = similar(A)
     @recycle for i in 1:10
-        @timed C = (bOp₁ - 2.5*I) * bOp₁ * A * A
+        @timed C = (bOp₁ - 2*2.5*I) * bOp₁ * A * A
         B = bOp₁ * (C - 3A)
+        B += A * B * C
         @timed A .= bOp₁ * (100C + 200B)
-        A ./= maximum(bOp₂ * A)
+        A ./= maximum(bOp₂ * +A)
     end
 end
 
