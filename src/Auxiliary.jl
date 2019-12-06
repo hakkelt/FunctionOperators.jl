@@ -173,19 +173,32 @@ Final note: `🔝` can be arbitrarily nested, and it can be embedded in expressi
 macro ♻(loop)
     🔝s = Array{Tuple{Symbol, Expr}}(undef, 0)
     🔃s = Array{Tuple{Symbol, Expr}}(undef, 0)
-    counter = 0
     loop = MacroTools.postwalk(x -> begin
         if @capture(x, 🔝(expr_))
             newSymbol = Symbol(:🔝_, length(🔝s) + 1)
             push!(🔝s, (newSymbol, expr))           # preallocate an array before the loop
             newSymbol                              # replace the expression with name of buffer
-        elseif @capture(x, 🔃(expr_))
-            counter += 1
-            newSymbol = Symbol(:🔃_, counter)
-            push!(🔃s, (newSymbol, expr))          # preallocate an array before the loop
-            @capture(expr, lhs_ * rhs_) ?          # replace the expression...
-                :(mul!($newSymbol, $lhs, $rhs)) :  # ...with mul!, if it is multiplication;
-                :(@.($newSymbol = $expr))          # ...with assignment + dot macro otherwise
+        elseif @capture(x, 🔃(expr_))   
+            newSymbol = Symbol(:🔃_, length(🔃s) + 1)
+            push!(🔃s, (newSymbol, expr)) # preallocate an array before the loop   
+            if @capture(expr, lhs_ * rhs_)
+                Expr(:call, :mul!, newSymbol, lhs, rhs)
+            else
+                transformed = MacroTools.postwalk(x -> begin
+                    if @capture(x, lhs_ + rhs__)
+                        Expr(:call, :(.+), lhs, rhs...)
+                    elseif @capture(x, lhs_ - rhs_)
+                        Expr(:call, :(.-), lhs, rhs)
+                    elseif @capture(x, lhs_ * rhs_)
+                        newSymbol = Symbol(:🔃_, length(🔃s) + 1)
+                        push!(🔃s, (newSymbol, x)) # preallocate an array before the loop
+                        Expr(:call, :mul!, newSymbol, lhs, rhs)
+                    else
+                        x
+                    end
+                end, expr)
+                :(($newSymbol .= $transformed))
+            end
         elseif @capture(x, @🔃 expr_)
             if @capture(expr, lhs_ = rhs1_ * rhs2_) || @capture(expr, lhs_ = mul!(e_, rhs1_, rhs2_))
                 push!(🔃s, (lhs, :($rhs1 * $rhs2))) # preallocate an array before the loop
