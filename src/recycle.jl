@@ -229,9 +229,9 @@ function buffer(expr, arrays, array_symbols, funops, buffers)
                 end
             elseif @capture(rhs, rhs1_ * rhs2__) && (rhs1 in arrays || any(x -> x in arrays, rhs2))
                 if lhs in array_symbols # if lhs is already assigned
-                    Expr(:call, :mul!, lhs, rhs1, Expr(:call, :*, rhs...))
+                    Expr(:call, :mul!, lhs, rhs1, Expr(:call, :*, rhs2...))
                 else
-                    Expr(:call, ifFirstMult, lhs, rhs1, Expr(:call, :*, rhs...))
+                    Expr(:call, ifFirstMult, lhs, rhs1, Expr(:call, :*, rhs2...))
                 end
             else
                 x
@@ -545,12 +545,14 @@ macro recycle(expr)
     end)
     if_params = [Expr(:if, Expr(:isdefined, var), var, nothing) for var in vars]
     var_names = map(var -> string(var), vars)
-    assign_list = [:($var_name in keys(new_values) && 
-        FunctionOperators.@string_varname_assign $var_name new_values[$var_name])
+    new_values = gensym("new_values")
+    assign_list = [:($var_name in keys($new_values) && 
+        FunctionOperators.@string_varname_assign $var_name $new_values[$var_name])
             for var_name in var_names if !isconst(Main, Symbol(var_name))]
     esc(quote
-        new_values = FunctionOperators.$generated_func_name( $(if_params...) )
+        $new_values = FunctionOperators.$generated_func_name( $(if_params...) )
         $(assign_list...)
+        $new_values["##@recycle return value##"]
     end)
 end
 
@@ -585,9 +587,13 @@ macro recycle(args...)
     expr_str = expr isa String ? expr : string(expr)
     result, extended, modified = transform(expr_str, arrays, funops, numbers, scalings)
     FunctionOperators_global_settings.macro_verbose && Core.println(prettify(result))
-    to_be_returned = intersect(modified, variables)
-    return_pairs = [Expr(:call, :(=>), string(var), var)
-        for var in to_be_returned]
-    length(variables) > 0 && push!(extended.args[1].args, Expr(:call, :Dict, return_pairs...))
+    if length(variables) > 0
+        to_be_returned = intersect(modified, variables)
+        return_pairs = [Expr(:call, :(=>), string(var), var) for var in to_be_returned]
+        return_val = gensym("return_val")
+        push!(return_pairs, Expr(:call, :(=>), "##@recycle return value##", return_val))
+        return_dict = Expr(:call, :Dict, return_pairs...)
+        extended.args[1] = Expr(:block, Expr(:(=), return_val, result), return_dict)
+    end
     esc(extended)
 end

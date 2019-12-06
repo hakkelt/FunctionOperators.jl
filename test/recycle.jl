@@ -73,7 +73,7 @@ function getCostFunc_recycle(E::FunOp, T::FunOp, d::Array{Complex{Float64},3})
     @recycle(arrays=[L,S,d], funops=[E,t], numbers=[λ_L,λ_S],
         (L,S,d,λ_L,λ_S) -> 0.5*norm₂(E*(L + S) - d)^2 + λ_L*normₙ(L) + λ_S*norm₁(T * S))
 end
-const cost_recycle = getCostFunc_recycle(E, T, d)
+#const cost_recycle = getCostFunc_recycle(E, T, d)
 
 function AL_2_recycle(d::Array{Complex{Float64}, 3},  # measurement data
         Ω::FunOp,                             # sampling operator
@@ -119,7 +119,41 @@ function AL_2_recycle(d::Array{Complex{Float64}, 3},  # measurement data
     L + S, cost_vec
 end
 
+function getBufferedOps()
+    Op₁ = FunctionOperator{Float64}(name="Op₁",
+        forw = (buffer, x) -> buffer .= x.^2,
+        backw = (buffer, x) -> broadcast!(sqrt, buffer, x),
+        inDims = (300, 300), outDims = (300, 300))
+    weights = [sin((i-j)*k) + 1 for i=1:300, j=1:300, k=1:10]
+    Op₂ = FunctionOperator{Float64}(name="Op₂",
+        forw = (buffer,x) -> buffer .= reshape(x, 300, 300, 1) .* weights,
+        backw = (buffer,x) -> dropdims(sum!(reshape(buffer, 300, 300, 1), x ./ weights), dims=3),
+        inDims=(300, 300), outDims=(300, 300, 10))
+    Op₁, Op₂
+end
+bOp₁, bOp₂ = getBufferedOps()
+data = [sin(i+j)^2 for i=1:300, j=1:300]
+
+function foo1(A, bOp₁, bOp₂)
+    for i in 1:10
+        @timed C = (bOp₁ - 2.5*I) * bOp₁ * A * A
+        B = bOp₁ * (C - 3A)
+        @timed A .= bOp₁ * (100C + 200B)
+        A ./= maximum(bOp₂ * A)
+    end
+end
+
+function foo4(A, bOp₁, bOp₂)
+    @recycle for i in 1:10
+        @timed C = (bOp₁ - 2.5*I) * bOp₁ * A * A
+        B = bOp₁ * (C - 3A)
+        @timed A .= bOp₁ * (100C + 200B)
+        A ./= maximum(bOp₂ * A)
+    end
+end
+
 @testset "recycle" begin
+    @test foo1(copy(data), bOp₁, bOp₂) == foo4(copy(data), bOp₁, bOp₂)
     res, cost = AL_2(d, Ω, Q, C, T)
     res_recycle, cost_recycle = AL_2_recycle(d, Ω, Q, C, T)
     @test res == res_recycle
