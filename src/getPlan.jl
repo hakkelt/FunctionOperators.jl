@@ -65,8 +65,9 @@ getPlanMul(FO::FunctionOperatorComposite, buffer::Buffer, adjoint::Bool, inside:
         ((buffer, x) -> lFunc(buffer, rFunc(buffer, x)), lBuffer, lText)
     elseif lBuffer.name == buffer.name != rBuffer.name
         ((buffer, x) -> lFunc(buffer, rFunc(rBuffer.buffer, x)), lBuffer, lText)
-    elseif lBuffer.name != buffer.name == rBuffer.name
-        ((buffer, x) -> lFunc(lBuffer.buffer, rFunc(buffer, x)), lBuffer, lText)
+    #elseif lBuffer.name != buffer.name == rBuffer.name
+        # This case never happens
+        #((buffer, x) -> lFunc(lBuffer.buffer, rFunc(buffer, x)), lBuffer, lText)
     else
         ((buffer, x) -> lFunc(lBuffer.buffer, rFunc(rBuffer.buffer, x)), lBuffer, lText)
     end
@@ -117,8 +118,9 @@ getPlanAddSub(FO::FunctionOperatorComposite, buffer::Buffer, adjoint::Bool, insi
         op == :+ ? @createReturnValue(buffer, buffer, +) : @createReturnValue(buffer, buffer, -)
     elseif lBuffer.name == buffer.name != rBuffer.name
         op == :+ ? @createReturnValue(buffer, rBuffer, +) : @createReturnValue(buffer, rBuffer, -)
-    elseif lBuffer.name != buffer.name == rBuffer.name
-        op == :+ ? @createReturnValue(lBuffer, buffer, +) : @createReturnValue(lBuffer, buffer, -)
+    #elseif lBuffer.name != buffer.name == rBuffer.name
+        # This case never happens
+        #op == :+ ? @createReturnValue(lBuffer, buffer, +) : @createReturnValue(lBuffer, buffer, -)
     else
         op == :+ ? @createReturnValue(lBuffer, rBuffer, +) : @createReturnValue(lBuffer, rBuffer, -)
     end

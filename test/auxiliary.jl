@@ -28,6 +28,7 @@ using FunctionOperators, LinearAlgebra, Test
         @test normE("A - (B - C)") == normE("A - B + C") == normE("C + A - B")
         # Well, I need to completely reorganize my code to support the following case, so I don't support it :(
         @test normE("A + B + (C - E)") == normE("(A + B + C) - E")
+        @test normE("-(C - E)") == normE("-C + E")
     end
     @testset "Equality" begin
         Op₁ = FunctionOperator{Float64}("Op₁", x -> x, x -> x, (1,), (1,))
@@ -70,10 +71,20 @@ using FunctionOperators, LinearAlgebra, Test
             end
             @test result == var1 * (var2 + var3)
             @♻ for i=1:5
+                result = var1 * 🔃(var2 - var3)
+                @test 🔃_1 == var2 - var3
+            end
+            @test result == var1 * (var2 - var3)
+            @♻ for i=1:5
                 result = var1 * 🔃(var2 * var3)
                 @test 🔃_1 == var2 * var3
             end
             @test result == var1 * (var2 * var3)
+            @♻ for i=1:5
+                result = var1 * 🔃(var1 + (var2 * var3))
+                @test 🔃_1 == var1 + (var2 * var3)
+            end
+            @test result == var1 * (var1 + (var2 * var3))
         end
         @testset "@🔃 marker" begin
             var1, var2 = rand(3,3), rand(3,3)
@@ -95,6 +106,13 @@ using FunctionOperators, LinearAlgebra, Test
             end
             @test 🔝_1 == var1 + var2
             @test result == (var1 + var2) * var3
+        end
+        @testset "@🔃 assertion" begin
+            @test_throws LoadError eval(quote
+               @♻ for i=1:5
+                   @🔃 result = var1 + var3
+               end
+           end)
         end
     end
 end;

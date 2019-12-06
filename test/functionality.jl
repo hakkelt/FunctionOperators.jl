@@ -60,6 +60,8 @@ using FunctionOperators, LinearAlgebra, Test
         @test mul!(output, combined, ones(10,10)*2) == mul!(output, combined, ones(10,10)*2)
         combined = (bOp₁ * Op₂)'
         @test mul!(output, combined, ones(10,10)*2) == mul!(output, combined, ones(10,10)*2)
+        @test (Op₃ - Op₄) * I * (ones(10,10)*2) == Op₃ * (ones(10,10)*2) - Op₄ * (ones(10,10)*2)
+        @test I * (Op₃ - Op₄) * (ones(10,10)*2) == Op₃ * (ones(10,10)*2) - Op₄ * (ones(10,10)*2)
     end
     @testset "Fidelity (manually checked)" begin
         @testset "Without automatic reshape" begin
@@ -70,6 +72,11 @@ using FunctionOperators, LinearAlgebra, Test
             manual_tests()
             FunctionOperators_global_settings.auto_reshape = false
         end
+    end
+    @testset "Just for coverage" begin
+        combined = Op₁ + Op₂
+        combined.operator = :%
+        @test_throws ErrorException combined * data₁
     end
     @testset "Adjoint of addition/substraction" begin
         @test_throws ErrorException (Op₃ + Op₄)' * ones(10,10,5)

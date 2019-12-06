@@ -14,6 +14,10 @@ using FunctionOperators, Test
                 inDims = (1,), outDims = (1,)) isa FunOp
             @test FunctionOperator{Float64}(forw = x -> x,
                 inDims = (1,), outDims = (1,)) isa FunOp
+            @test FunctionOperator{Float64}(forw = (buffer,x) -> x,
+                inDims = (1,), outDims = (1,)) isa FunOp
+            op = FunctionOperator{Float64}(forw = x -> x, inDims = (1,), outDims = (1,))
+            @test op.getScale() == nothing
         end
         @testset "Positional constructors" begin
             @test FunctionOperator{Float64}("Op₁", x -> x, x -> x,

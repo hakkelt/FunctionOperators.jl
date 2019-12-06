@@ -4,7 +4,7 @@
 
 # Default value of the FunctionOperatorComposite's plan field
 # This variable is also used to check if FunctionOperatorComposite's plan field has the default value
-noplan = () -> ()
+noplan = () -> nothing
 
 """
 Supertype for FunctionOperator and FunctionOperatorComposite
@@ -50,7 +50,7 @@ Arguments
     adjoint::Bool = false # adjoint operator creates a new object where this field is negated
     mutating::Bool = checkMutating(forw) # true if forw has two arguments
     scaling::Bool = false # true if created from LinearAlgebra.UniformScaling object
-    getScale::Function = () -> () # This is used only if scaling field is true
+    getScale::Function = () -> nothing # This is used only if scaling field is true
     inDims::Tuple{Vararg{Int}}
     outDims::Tuple{Vararg{Int}}
     @assert (2 <= nargs(forw) <= 3)  "forw can only accept either one or two inputs"
