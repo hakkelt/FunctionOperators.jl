@@ -16,12 +16,13 @@ function convert_to_markdown(file)
     return "src-staging/$(replace(file, "ipynb"=>"md"))"
 end
 
-function convert_equations(file)
+function convert_equations_and_search_lines(file)
     contents = read(file, String)
     contents = replace(contents, r"\$\$(.*?)\$\$"s => s"""```math
     \g<1>
     ```""")
     contents = replace(contents, r"\* \$(.*?)\$" => s"* ``\g<1>``") # starting a line with inline math screws up tex2jax for some reason
+    contents = replace(contents, r"search.*$" => "")
     write(file, contents)
     return file
 end
@@ -30,7 +31,7 @@ rm("src-staging", force=true, recursive=true)
 mkdir("src-staging")
 for file in readdir("../examples")
     if endswith(file, "ipynb")
-        file |> convert_to_markdown |> convert_equations
+        file |> convert_to_markdown |> convert_equations_and_search_lines
     elseif !startswith(file, ".")
         cp("src/$file", "src-staging/$file")
     end
@@ -50,7 +51,7 @@ end
 
 # adds the MyBinder button on each page that is a notebook
 
-@eval Documenter.Writers.HTMLWriter function render_article(ctx, navnode)
+#=@eval Documenter.Writers.HTMLWriter function render_article(ctx, navnode)
     @tags article header footer nav ul li hr span a img
 
     header_links = map(Documents.navpath(navnode)) do nn
@@ -87,7 +88,7 @@ end
 
     pagenodes = domify(ctx, navnode)
     article["#docs"](art_header, pagenodes, art_footer)
-end
+end=#
 
 makedocs(
     sitename="FunctionOperators.jl", 
