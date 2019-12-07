@@ -73,7 +73,7 @@ function getCostFunc_recycle(E::FunOp, T::FunOp, d::Array{Complex{Float64},3})
     @recycle(arrays=[L,S,d], funops=[E,t], numbers=[λ_L,λ_S],
         (L,S,d,λ_L,λ_S) -> 0.5*norm₂(E*(L + S) - d)^2 + λ_L*normₙ(L) + λ_S*norm₁(T * S))
 end
-#const cost_recycle = getCostFunc_recycle(E, T, d)
+const cost_recycle = getCostFunc_recycle(E, T, d)
 
 function AL_2_recycle(d::Array{Complex{Float64}, 3},  # measurement data
         Ω::FunOp,                             # sampling operator
