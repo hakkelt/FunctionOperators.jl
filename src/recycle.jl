@@ -66,13 +66,11 @@ function preprocess(expr_str, arrays, funops, numbers, scalings, extracted_ops, 
                     (sides = extractFunOp(sides, funops, numbers, scalings, extracted_ops, modified))
                 push!(arrays, Expr(:call, :*, sides...))
                 return Expr(:call, :*, sides...)
-            elseif all(x -> x in numbers || x in scalings, [lhs,rhs...]) && 
-                    any(x -> x in scalings, [lhs,rhs...])
+            elseif all(x -> (x in numbers || x in scalings), sides) && 
+                    any(x -> x in scalings, sides)
                 push!(scalings, x)
             elseif all(e -> e in numbers, sides)
                 push!(numbers, x)
-            elseif any(e -> e in arrays, sides)
-                push!(arrays, x)
             end
         elseif @capture(x, lhs_ .* rhs__)
             push!(arrays, x)
@@ -113,19 +111,29 @@ function multiDot(op, expr_list)
         Expr(:call, op, expr_list[1], expr_list[2])
 end
 
+function fixUniformScalingForDotify(terms, scalings)
+    new_terms = []
+    for term in terms
+        push!(new_terms, term in scalings ? :(($term).λ) : term)
+    end
+    new_terms
+end
+
 # Attempts to replace +, -, *, and / operators with their respective "dot" operations
 # whenever it is possible
-function dotify(expr, arrays, numbers)
+function dotify(expr, arrays, scalings, numbers)
     MacroTools.postwalk(expr) do x
         if @capture(x, lhs_ + rhs__)
             terms = [lhs, rhs...]
             if any(x -> x in arrays, terms)
+                terms = fixUniformScalingForDotify(terms, scalings)
                 new_expr = length(terms) > 1 ? multiDot(:.+, terms) : Expr(:call, :.+, terms[1])
                 push!(arrays, new_expr)
                 return new_expr
             end
         elseif @capture(x, lhs_ - rhs_)
             if lhs in arrays || rhs in arrays
+                lhs, rhs = fixUniformScalingForDotify([lhs, rhs], scalings)
                 new_expr = :($lhs .- $rhs)
                 push!(arrays, new_expr)
                 return new_expr
@@ -138,6 +146,7 @@ function dotify(expr, arrays, numbers)
             end
         elseif @capture(x, lhs_ / rhs_)
             if lhs in arrays && rhs in numbers || lhs in numbers && rhs in arrays
+                lhs, rhs = fixUniformScalingForDotify([lhs, rhs], scalings)
                 new_expr = :($lhs ./ $rhs)
                 push!(arrays, new_expr)
                 return new_expr
@@ -154,6 +163,7 @@ function dotify(expr, arrays, numbers)
                     e in numbers ? (right_last_number = length(terms) - i + 1) : break
                 end
                 if left_last_number > 0 || right_last_number < length(terms) + 1
+                    terms = fixUniformScalingForDotify(terms, scalings)
                     new_expr = left_last_number + 1 == right_last_number - 1 ||
                                     right_last_number == length(terms) ?
                         multiDot(:(.*), terms) :
@@ -405,7 +415,7 @@ function transform(expr_str, arrays, funops, numbers, scalings)
     extracted_ops, buffers, modified, first_bools = Dict(), [], [], []
     # Optimize by replacements
     result = preprocess(expr_str, arrays, funops, numbers, scalings, extracted_ops, modified) |>
-        x -> dotify(x, arrays, numbers) |>
+        x -> dotify(x, arrays, scalings, numbers) |>
         x -> buffer(x, arrays, array_symbols, funops, buffers) |>
         x -> postprocess(x, first_bools)
     # Add initialization of extracted operaors, buffers and "first bool"s
@@ -590,7 +600,7 @@ macro recycle(args...)
             expr = a
         end
     end
-    scalings = @isdefined(I) && I isa UniformScaling ? [I] : []
+    scalings = @isdefined(I) && I isa UniformScaling ? Array{Any}([:I]) : []
     expr_str = expr isa String ? expr : string(expr)
     result, extended, modified = transform(expr_str, arrays, funops, numbers, scalings)
     FunctionOperators_global_settings.macro_verbose && Core.println(prettify(result))

@@ -73,7 +73,7 @@ function getCostFunc_recycle(E::FunOp, T::FunOp, d::Array{Complex{Float64},3})
     @recycle(arrays=[L,S,d], funops=[E,t], numbers=[λ_L,λ_S],
         (L,S,d,λ_L,λ_S) -> 0.5*norm₂(E*(L + S) - d)^2 + λ_L*normₙ(L) + λ_S*norm₁(T * S))
 end
-const cost_recycle = getCostFunc_recycle(E, T, d)
+#const cost_recycle = getCostFunc_recycle(E, T, d)
 
 function AL_2_recycle(d::Array{Complex{Float64}, 3},  # measurement data
         Ω::FunOp,                             # sampling operator
@@ -135,11 +135,12 @@ bOp₁, bOp₂ = getBufferedOps()
 data = [sin(i+j)^2 for i=1:300, j=1:300]
 
 function foo1(A, bOp₁, bOp₂)
+    B = similar(A)
     for i in 1:10
         @timed C = (bOp₁ - 2*2.5*I) * bOp₁ * A * A
-        B = bOp₁ * (C - 3A)
+        B = bOp₁ * (C - 3A + 2I)
         B += A * B * C
-        @timed A .= bOp₁ * (100C + 200B)
+        @timed A .= bOp₁ * (100C + B * 200I)
         A ./= maximum(bOp₂ * +A)
     end
 end
@@ -148,9 +149,9 @@ function foo4(A, bOp₁, bOp₂)
     B = similar(A)
     @recycle for i in 1:10
         @timed C = (bOp₁ - 2*2.5*I) * bOp₁ * A * A
-        B = bOp₁ * (C - 3A)
+        B = bOp₁ * (C - 3A + 2I)
         B += A * B * C
-        @timed A .= bOp₁ * (100C + 200B)
+        @timed A .= bOp₁ * (100C + B * 200I)
         A ./= maximum(bOp₂ * +A)
     end
 end
