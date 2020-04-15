@@ -69,7 +69,7 @@ LinearAlgebra.mul!(buffer::AbstractArray, FO::FunctionOperatorComposite, A::Abst
         info("buffer1 = <previously allocated>")
         FO.plan_function, output, FO.plan_string = getPlan(FO, buffer1, FO.adjoint, "x", storage)
         info(("Plan calculated: $(output.name) .= "*FO.plan_string))
-        @assert output.buffer == buffer "Implementation error: Output of computation is written to $(output.name) instead of buffer1"
+        @assert output.buffer === buffer "Implementation error: Output of computation is written to $(output.name) instead of buffer1"
     end
     result = FO.plan_function(buffer, A)
     (buffer !== result) && (buffer .= result)
