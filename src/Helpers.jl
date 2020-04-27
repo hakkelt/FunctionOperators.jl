@@ -71,7 +71,7 @@ createScalingForMult(FO::FunOp, S::LinearAlgebra.UniformScaling, size::Tuple{Var
     FunctionOperator{eltype(FO)}(name = scalingName(S),
         forw =  (buffer, x) -> buffer .= x .* λ,
         backw = (buffer, x) -> buffer .= x .* conj(λ),
-        scaling = true, getScale = () -> λ, mutating = true,
+        scaling = true, getScale = () -> λ, twoInputs = true,
         inDims = size, outDims = size)
 end
 
@@ -84,6 +84,6 @@ createScalingForAddSub(FO::FunOp, S::LinearAlgebra.UniformScaling) = begin
     FunctionOperator{eltype(FO)}(name = name,
         forw =  (buffer, x) -> broadcast!(*, buffer, x, λ),
         backw = (buffer, x) -> broadcast!(*, buffer, x, conj(λ)),
-        scaling = true, getScale = () -> λ, mutating = true,
+        scaling = true, getScale = () -> λ, twoInputs = true,
         inDims = FO.outDims, outDims = FO.outDims)
 end

@@ -13,9 +13,7 @@ abstract type FunOp end
 
 # Returns the number of arguments
 nargs(f::Function) = first(methods(f)).nargs
-# forw and backw functions are called mutating if they have two arguments;
-# thus, they mutate the buffer given as first argument
-checkMutating(f::Function) = (nargs(f) == 3)
+checkTwoInputs(f::Function) = (nargs(f) == 3)
 
 mutable struct Counter
     num::Int64
@@ -48,7 +46,7 @@ Arguments
         (x) -> error("backward function not implemented for "*name) :
         (buffer, x) -> error("backward function not implemented for "*name))
     adjoint::Bool = false # adjoint operator creates a new object where this field is negated
-    mutating::Bool = checkMutating(forw) # true if forw has two arguments
+    twoInputs::Bool = checkTwoInputs(forw) # true if forw has two arguments
     scaling::Bool = false # true if created from LinearAlgebra.UniformScaling object
     getScale::Function = () -> nothing # This is used only if scaling field is true
     inDims::Tuple{Vararg{Int}}
@@ -59,26 +57,31 @@ end
 
 # Constructor with positional arguments without default valued fields
 FunctionOperator{T}(forw::Function,
-        inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} = begin
+        inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} =
     FunctionOperator{T}(forw = forw, inDims = inDims, outDims = outDims)
-end
 
 # Constructor with positional arguments without backw
 FunctionOperator{T}(name::String, forw::Function,
-        inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} = begin
+        inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} =
     FunctionOperator{T}(name = name, forw = forw, inDims = inDims, outDims = outDims)
-end
 
 # Constructor with positional arguments without name
 FunctionOperator{T}(forw::Function, backw::Function,
-        inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} = begin
+        inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} =
     FunctionOperator{T}(forw = forw, backw = backw, inDims=inDims, outDims=outDims)
-end
 
 # Constructor with positional arguments with all public fields
 FunctionOperator{T}(name::String, forw::Function, backw::Function,
-        inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} = begin
+        inDims::Tuple{Vararg{Int}}, outDims::Tuple{Vararg{Int}}) where {T} =
     FunctionOperator{T}(name = name, forw = forw, backw = backw, inDims = inDims, outDims = outDims)
+
+# Named array for nicer string representation of computed plan.
+# The name is always "bufferX" where X is a number which is incremented at each allocation
+mutable struct Buffer
+    buffer::Array
+    name::String
+    number::Int64
+    available::Bool
 end
 
 # Structure holding a combination of FunctionOperators
@@ -90,7 +93,7 @@ end
     right::FunOp
     operator::Symbol
     adjoint::Bool = false
-    mutating::Bool = operator in [:+, :-] || left.mutating || right.mutating
+    twoInputs::Bool = true
     inDims::Tuple{Vararg{Int}} = right.inDims
     outDims::Tuple{Vararg{Int}} = left.outDims
     plan_function::Function = noplan
