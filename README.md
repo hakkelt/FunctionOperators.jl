@@ -6,11 +6,11 @@
 
 ## Motivation
 
-Have image reconstruction code in Julia, which is
+I wanted to write code for image reconstruction in Julia, which
 
 - resambles the mathematical notation with abstract operators on multidimensional spaces,
-- exhibits high speed, and
-- easy to write and read.
+- has minimal memory requirement and fast to run, and
+- is easy to write and read.
 
 FunctionOperator is an operator that maps from a multidimensional space to another multidimensional space. The mapping is defined by a function (`forw`), and optionally the reverse mapping can also be defined (`backw`). The input the mapping must be subtype of AbstractArray.
 
@@ -67,7 +67,7 @@ true
 
 ### Performance
 
-With little effort we can achieve the same speed as we would have without FunctionOperators. For example, consider the following function:
+With little effort we can achieve the same speed as we would have manually optimized functions. For example, consider the following function:
 
 ```julia
 julia> using BenchmarkTools
@@ -94,7 +94,7 @@ BenchmarkTools.Trial:
   evals/sample:     1
 ```
 
-That function basically consist of three operations: A Fourier transform, a masking, and an inverse Fourier transform. Using FunctionOperators, we can achieve code that is more similar to the high-level description exhibiting the same performance:
+That function basically consist of three operations: A Fourier transform, a masking, and an inverse Fourier transform. Using FunctionOperators, we can write code that is more similar to the high-level description that has minimal run-time and memory overhead:
 
 ```julia
 julia> 𝓕₂ = FunctionOperator{Complex{Float64}}(
@@ -121,10 +121,12 @@ BenchmarkTools.Trial:
   
 For more detailed description, see [tutorial](https://hakkelt.github.io/FunctionOperators.jl/latest/Tutorial/).
 
-## Similar packages
+## Related packages
 
-Not a Julia package, but the main motivation behind creating this package is to have the same functionality as `fatrix2` in the Matlab version [Michigan Image Reconstruction Toolbox (MIRT)](https://github.com/JeffFessler/mirt), ([description](https://web.eecs.umich.edu/~fessler/irt/irt/doc/doc.pdf)).
+Not a Julia package, but the main motivation behind creating this package is to have the same functionality as `fatrix2` in the Matlab version of [Michigan Image Reconstruction Toolbox (MIRT)](https://github.com/JeffFessler/mirt), ([description](https://web.eecs.umich.edu/~fessler/irt/irt/doc/doc.pdf)).
 
-`FunctionOperators` was also inspired by [LinearMaps.jl](https://github.com/Jutho/LinearMaps.jl). The main difference is that `LinearMaps` support only mappings where the input and output are both vectors (which is often not the case in image reconstruction algorithms).
+The most similar Julia package is [AbstractOperators.jl](https://github.com/kul-forbes/AbstractOperators.jl). The feature set of its `MyLinOp` type largely overlaps with `FunctionOperator`'s features. The main difference is that composition in `AbstractOperators` is more intensive memory-wise as it allocates a buffer for each member of composition while `FunctionOperators` allocates a new buffer only when necessary. On the other hand, the difference between is significant only for memory-intensive applications.
 
-[LinearOperators](https://github.com/JuliaSmoothOptimizers/LinearOperators.jl) provides some similar features too, but it also requires the input and the output to be 1-dimensional.
+`FunctionOperators` was also inspired by [LinearMaps.jl](https://github.com/Jutho/LinearMaps.jl)  The main difference is that `LinearMaps` support only mappings where the input and output are both vectors (which is often not the case in image reconstruction algorithms). [LinearMapsAA.jl](https://github.com/JeffFessler/LinearMapsAA.jl) is an extension of [LinearMaps.jl](https://github.com/Jutho/LinearMaps.jl) with `getindex` and `setindex!` functions making it conform to the requirements of an AbstractMatrix type. Additionally, a user can include a NamedTuple of properties with it, and then retrieve those later using the `A.key` syntax like one would do with a struct (composite type). From implementational point of view, both [LinearMaps.jl](https://github.com/Jutho/LinearMaps.jl) and [LinearMapsAA.jl](https://github.com/JeffFessler/LinearMapsAA.jl) uses more memory when `LinearMaps` with different input and output size are composed.
+
+[LinearOperators](https://github.com/JuliaSmoothOptimizers/LinearOperators.jl) provides some similar features too, but it also requires the input and the output to be a vector.
