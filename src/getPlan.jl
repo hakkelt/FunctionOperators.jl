@@ -6,8 +6,8 @@
 # ----------------------------------------------------------
 
 # This WeakKeyDict stores all already allocated buffers. It serves like a "L2-cache": when newBuffer
-# function cannot find a proper buffer in storage, then it tries to find one in bufferPool. And as
-# it is a WeakKeyDict, it allows Garbage Collector to release buffers not used any more.
+# function cannot find a proper buffer in storage ("L1-cache"), then it tries to find one in bufferPool.
+# And as it is a WeakKeyDict, it allows Garbage Collector to release buffers not used any more.
 const bufferPool = WeakKeyDict{Buffer, Int}()
 
 # Special constructor of Buffer type
@@ -18,7 +18,7 @@ function newBuffer(datatype::Type, new_size::Tuple{Vararg{Int}}, storage::Vector
     recycled = nothing
     notAvailable = Set{Buffer}()
     for i in range(length(storage), stop=1, step=-1)
-        if length(storage[i].buffer) == prod(new_size)
+        if length(storage[i].buffer) == prod(new_size) && eltype(storage[i].buffer) == datatype
             if storage[i].available
                 recycled = size(storage[i].buffer) == new_size ? storage[i] : reshape(storage[i], new_size)
                 break
@@ -35,7 +35,7 @@ function newBuffer(datatype::Type, new_size::Tuple{Vararg{Int}}, storage::Vector
         info("Allocation of $name, size: $(new_size)")
         new_buffer = nothing
         for (buffer, bufferLength) in bufferPool
-            if bufferLength == prod(new_size) && !(buffer in notAvailable)
+            if bufferLength == prod(new_size) && eltype(buffer) == datatype && !(buffer in notAvailable)
                 new_buffer = buffer
                 break
             end
@@ -165,7 +165,7 @@ function getPlan(FO::FunctionOperator, buffer::Buffer, adjoint::Bool, inside::St
             FO.name*(adjoint ? ".backw" : ".forw")*"($(buffer.name), $inside)"
         (adjoint ? (b,x) -> begin FO.backw(b,x); b; end : (b,x) -> begin FO.forw(b,x); b; end, buffer, text)
     else
-        text = FO.name*(adjoint ? ".backw" : ".forw")*"($inside)"
+        text = buffer.name*" .= "*FO.name*(adjoint ? ".backw" : ".forw")*"($inside)"
         (adjoint ? (b, x) -> b .= FO.backw(x) : (b, x) -> b .= FO.forw(x), buffer, text)
     end
 end
