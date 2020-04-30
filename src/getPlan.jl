@@ -87,24 +87,24 @@ macro createReturnValue(left, right, op)
     rBuf = right == :buffer ? :buffer : :(rBuffer.buffer)
     name = left == :buffer ? :(buffer.name) : :(lBuffer.name)
     esc(quote
-        if FO.left.ismutating && !FO.right.ismutating
-           if $op == +
-               ((buffer, x) -> begin
-                    inBuff.buffer .= x;
-                    broadcast!(+, $lBuf, rFunc($rBuf, inBuff.buffer), lFunc($lBuf, inBuff.buffer))
-                end, lBuffer, "($(inBuff.name) .= $inside; broadcast!(+, $($name), $rText, $lText))")
-            else
-               ((buffer, x) -> begin
-                    inBuff.buffer .= x;
-                    broadcast!((x,y) -> y-x, $lBuf, rFunc($rBuf, inBuff.buffer), lFunc($lBuf, inBuff.buffer))
-               end, lBuffer, "($(inBuff.name) .= $inside; broadcast!((x,y) -> y-x, , $($name), $rText, $lText))")
-            end
-        else
+        #if FO.left.ismutating && !FO.right.ismutating
+        #   if $op == +
+        #       ((buffer, x) -> begin
+        #            inBuff.buffer .= x;
+        #            broadcast!(+, $lBuf, rFunc($rBuf, inBuff.buffer), lFunc($lBuf, inBuff.buffer))
+        #        end, lBuffer, "($(inBuff.name) .= $inside; broadcast!(+, $($name), $rText, $lText))")
+        #    else
+        #       ((buffer, x) -> begin
+        #            inBuff.buffer .= x;
+        #            broadcast!((x,y) -> y-x, $lBuf, rFunc($rBuf, inBuff.buffer), lFunc($lBuf, inBuff.buffer))
+        #       end, lBuffer, "($(inBuff.name) .= $inside; broadcast!((x,y) -> y-x, , $($name), $rText, $lText))")
+        #    end
+        #else
            ((buffer, x) -> begin
                 inBuff.buffer .= x;
                 broadcast!($op, $lBuf, lFunc($lBuf, inBuff.buffer), rFunc($rBuf, inBuff.buffer))
             end, lBuffer, "($(inBuff.name) .= $inside; broadcast!($op, $($name), $lText, $rText))")
-        end
+        #end
     end)
 end
 
@@ -118,8 +118,8 @@ function getPlanAddSub(FO::FunctionOperatorComposite, buffer::Buffer, adjoint::B
     lFunc, lBuffer, lText = getPlan(FO.left, buffer, adjoint ⊻ FO.left.adjoint, inBuff.name, storage)
     lBuffer.available = false
     inBuff.available = true
-    rBuffer = FO.left.ismutating && FO.right.ismutating ? 
-        newBuffer(eltype(FO), FO.outDims, storage) : lBuffer
+    rBuffer = #FO.left.ismutating && FO.right.ismutating ? 
+        newBuffer(eltype(FO), FO.outDims, storage) #: lBuffer
     rFunc, rBuffer, rText = getPlan(FO.right, rBuffer, adjoint ⊻ FO.right.adjoint, inBuff.name, storage)
     lBuffer.available = buffer.available = true
     if rBuffer.name == buffer.name == lBuffer.name
@@ -154,15 +154,18 @@ function getPlan(FO::FunctionOperator, buffer::Buffer, adjoint::Bool, inside::St
     # FunctionOperatorComposite object, but leaves intact its descendants.
     # Thus, sometimes inDims and outDims are already switched, but sometimes not,
     # that's why we need this awkward expression: adjoint != FO.adjoint ? FO.inDims : FO.outDims
-    size(buffer.buffer) != (adjoint != FO.adjoint ? FO.inDims : FO.outDims) &&
-        (buffer = newBuffer(eltype(FO), (adjoint != FO.adjoint ? FO.inDims : FO.outDims), storage))
+    (inDims, outDims) = adjoint != FO.adjoint ? (FO.outDims, FO.inDims) : (FO.inDims, FO.outDims)
+    size(buffer.buffer) != outDims && (buffer = newBuffer(eltype(FO), outDims, storage))
     if checkTwoInputs(FO.forw)
         text = FO.scaling ?
             "broadcast!(*, $(buffer.name), $(adjoint ? conj(FO.getScale()) : FO.getScale()), $inside)" : 
             FO.name*(adjoint ? ".backw" : ".forw")*"($(buffer.name), $inside)"
         (adjoint ? (b,x) -> begin FO.backw(b,x); b; end : (b,x) -> begin FO.forw(b,x); b; end, buffer, text)
     else
-        text = FO.name*(adjoint ? ".backw" : ".forw")*"($inside)"
-        (adjoint ? (b, x) -> reshape(FO.backw(x), FO.inDims) : (b, x) -> reshape(FO.forw(x), FO.outDims), buffer, text)
+        text = buffer.name*" .= "*FO.name*(adjoint ? ".backw" : ".forw")*"($inside)"
+        (adjoint ?
+            (b, x) -> b .= reshape(FO.backw(x), size(b)) :
+            (b, x) -> b .= reshape(FO.forw(x), size(b)),
+        buffer, text)
     end
 end

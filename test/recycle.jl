@@ -1,4 +1,4 @@
-using FunctionOperators, MacroTools, OffsetArrays, LinearAlgebra, Test, BenchmarkTools
+using FunctionOperators, MacroTools, LinearAlgebra, Test, BenchmarkTools
 
 d = rand(10, 3, 2)im
 Ω = FunctionOperator{Complex{Float64}}(x -> x, x -> x, (10, 3, 2), (10, 3, 2))
@@ -50,8 +50,8 @@ function AL_2(d::Array{Complex{Float64}, 3},  # measurement data
     V₂ = zeros(Complex{Float64}, size(L))
     Z_scaler = 1 ./ (reshape(samp, size(samp)..., 1) .+ δ₁)
 
-    cost_vec = OffsetVector{Float64}(undef, 0:N)
-    cost_vec[0] = cost(L, S, d, scale_L*λ_L, scale_S*λ_S)
+    cost_vec = Vector{Float64}(undef, N+1)
+    cost_vec[1] = cost(L, S, d, scale_L*λ_L, scale_S*λ_S)
 
     for k in 1:N
         Z = Z_scaler .* (Ω' * d + δ₁*(Q * C * X - V₁))
@@ -63,7 +63,7 @@ function AL_2(d::Array{Complex{Float64}, 3},  # measurement data
             V₂ += X - L - S
         end
 
-        cost_vec[k] = cost(L, S, d, scale_L*λ_L, scale_S*λ_S)
+        cost_vec[k+1] = cost(L, S, d, scale_L*λ_L, scale_S*λ_S)
     end
 
     L + S, cost_vec
@@ -100,8 +100,8 @@ function AL_2_recycle(d::Array{Complex{Float64}, 3},  # measurement data
     V₂ = zeros(Complex{Float64}, size(L))
     Z_scaler = 1 ./ (reshape(samp, size(samp)..., 1) .+ δ₁)
 
-    cost_vec = OffsetVector{Float64}(undef, 0:N)
-    cost_vec[0] = cost_recycle(L, S, d, scale_L*λ_L, scale_S*λ_S)
+    cost_vec = Vector{Float64}(undef, N+1)
+    cost_vec[1] = cost_recycle(L, S, d, scale_L*λ_L, scale_S*λ_S)
 
     @recycle for k in 1:N
         Z = Z_scaler .* (Ω' * d + δ₁*(Q * C * X - V₁))
@@ -113,7 +113,7 @@ function AL_2_recycle(d::Array{Complex{Float64}, 3},  # measurement data
             V₂ += X - L - S
         end
 
-        cost_vec[k] = cost_recycle(L, S, d, scale_L*λ_L, scale_S*λ_S)
+        cost_vec[k+1] = cost_recycle(L, S, d, scale_L*λ_L, scale_S*λ_S)
     end
 
     L + S, cost_vec
