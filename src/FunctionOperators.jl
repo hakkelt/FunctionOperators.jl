@@ -1,8 +1,8 @@
 module FunctionOperators
 using Parameters, MacroTools, Printf, LinearAlgebra
-import Base: show, *, +, -, adjoint, ==, eltype
+import Base: show, *, +, -, adjoint, ==, eltype, reshape
 
-export FunctionOperator, FunOp, setPlan, @♻, @recycle, FunctionOperators_global_settings
+export FunctionOperator, FunOp, reshape, setPlan, @♻, @recycle, FunctionOperators_global_settings
 
 # Structure to hold global settings
 mutable struct Settings

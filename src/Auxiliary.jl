@@ -9,11 +9,38 @@ Arguments:
  - `f` manually defined plan (function with two arguments, first is the output buffer, second is the input array)
  - `f_str` (Optional) string representation of the plan
 """
-setPlan(FO::FunctionOperatorComposite, f::Function, f_str::String = "manually defined") = begin
+function setPlan(FO::FunctionOperatorComposite, f::Function, f_str::String = "manually defined")
     @assert nargs(f) == 3  "plan must accept two arguments!"
     FO.plan_function = f
     FO.plan_string = f_str
     FO
+end
+
+function Base.reshape(FO::FunctionOperator; inDims::Union{Nothing, NTuple{N, Int}} where N = nothing,
+        outDims::Union{Nothing, NTuple{N, Int}} where N = nothing)
+    inDims = inDims isa Nothing ? FO.inDims : inDims
+    outDims = outDims isa Nothing ? FO.outDims : outDims
+    (iDims, oDims) = FO.adjoint ? (outDims, inDims) : (inDims, outDims)
+    FunctionOperator(FO, 
+        name = "✠($(FO.name))",
+        forw = checkTwoInputs(FO.forw) ?
+            (b,x) -> begin FO.forw(reshape(b, FO.outDims), reshape(x, FO.inDims)); b; end :
+             x -> reshape(FO.forw(reshape(x, FO.inDims)), oDims),
+        backw = checkTwoInputs(FO.backw) ?
+            (b,x) -> begin FO.backw(reshape(b, FO.inDims), reshape(x, FO.outDims)); b; end :
+             x -> reshape(FO.backw(reshape(x, FO.outDims)), iDims),
+        inDims = inDims, outDims = outDims)
+end
+
+function Base.reshape(FO::FunctionOperatorComposite; inDims::Union{Nothing, NTuple{N, Int}} where N = nothing,
+        outDims::Union{Nothing, NTuple{N, Int}} where N = nothing)
+    FOᴴ = FO'
+    inDims = inDims isa Nothing ? FO.inDims : inDims
+    outDims = outDims isa Nothing ? FO.outDims : outDims
+    FunctionOperator{eltype(FO)}(name = "✠($(FO.name))",
+        forw = (b,x) -> begin mul!(reshape(b, FO.outDims), FO, reshape(x, FO.inDims)); b; end,
+        backw = (b,x) -> begin mul!(reshape(b, FOᴴ.outDims), FOᴴ, reshape(x, FOᴴ.inDims)); b; end,
+        inDims = inDims, outDims = outDims)
 end
 
 # --------- Equality check -----------

@@ -31,9 +31,9 @@ assertTypeBuffer(left, right) =
 assertMultDim(left, right) = 
     isa(right, AbstractArray) ?
         left.inDims != size(right) &&
-            throw(DimensionMismatch("{$(left.name)} is size of $(left.inDims) and the given array is size of $(size(right))")) :
+            throw(DimensionMismatch("The input dimension of {$(left.name)} is $(left.inDims) and the given array is size of $(size(right))")) :
         left.inDims != right.outDims &&
-            throw(DimensionMismatch("{$(left.name)} is size of $(left.inDims) and {$(right.name)} is size of $(right.outDims)"))
+            throw(DimensionMismatch("The input dimension of {$(left.name)} is $(left.inDims) and the output dimension of  {$(right.name)} is $(right.outDims)"))
 
 # Used by mul!
 # Check if the size of array given as buffer for output matches the type of the operator
@@ -71,7 +71,7 @@ createScalingForMult(FO::FunOp, S::LinearAlgebra.UniformScaling, size::Tuple{Var
     FunctionOperator{eltype(FO)}(name = scalingName(S),
         forw =  (buffer, x) -> buffer .= x .* λ,
         backw = (buffer, x) -> buffer .= x .* conj(λ),
-        scaling = true, getScale = () -> λ, twoInputs = true,
+        scaling = true, getScale = () -> λ, ismutating = true,
         inDims = size, outDims = size)
 end
 
@@ -84,6 +84,6 @@ createScalingForAddSub(FO::FunOp, S::LinearAlgebra.UniformScaling) = begin
     FunctionOperator{eltype(FO)}(name = name,
         forw =  (buffer, x) -> broadcast!(*, buffer, x, λ),
         backw = (buffer, x) -> broadcast!(*, buffer, x, conj(λ)),
-        scaling = true, getScale = () -> λ, twoInputs = true,
+        scaling = true, getScale = () -> λ, ismutating = true,
         inDims = FO.outDims, outDims = FO.outDims)
 end

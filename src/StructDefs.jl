@@ -18,7 +18,7 @@ checkTwoInputs(f::Function) = (nargs(f) == 3)
 mutable struct Counter
     num::Int64
 end
-counter = Counter(0)
+const counter = Counter(0)
 getNextNum() = (counter.num += 1)
 
 """
@@ -46,7 +46,7 @@ Arguments
         (x) -> error("backward function not implemented for "*name) :
         (buffer, x) -> error("backward function not implemented for "*name))
     adjoint::Bool = false # adjoint operator creates a new object where this field is negated
-    twoInputs::Bool = checkTwoInputs(forw) # true if forw has two arguments
+    ismutating::Bool = checkTwoInputs(forw) # true if forw has two arguments
     scaling::Bool = false # true if created from LinearAlgebra.UniformScaling object
     getScale::Function = () -> nothing # This is used only if scaling field is true
     inDims::Tuple{Vararg{Int}}
@@ -93,7 +93,7 @@ end
     right::FunOp
     operator::Symbol
     adjoint::Bool = false
-    twoInputs::Bool = true
+    ismutating::Bool = true
     inDims::Tuple{Vararg{Int}} = right.inDims
     outDims::Tuple{Vararg{Int}} = left.outDims
     plan_function::Function = noplan
