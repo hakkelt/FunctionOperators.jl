@@ -29,4 +29,13 @@ include("mul.jl")
 include("Auxiliary.jl")
 include("recycle.jl")
 
+
+
+function __init__()
+    empty!(bufferPool)
+    for _ in 1:Threads.nthreads()
+        push!(bufferPool, WeakKeyDict{Buffer, Int}())
+    end
+end
+
 end # module

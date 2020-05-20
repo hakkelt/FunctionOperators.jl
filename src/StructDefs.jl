@@ -16,10 +16,10 @@ nargs(f::Function) = first(methods(f)).nargs
 checkTwoInputs(f::Function) = (nargs(f) == 3)
 
 mutable struct Counter
-    num::Int64
+    num::Threads.Atomic{Int}
 end
-const counter = Counter(0)
-getNextNum() = (counter.num += 1)
+const counter = Counter(Threads.Atomic{Int}(1))
+getNextNum() = Threads.atomic_add!(counter.num, 1)
 
 """
 FunctionOperator is an operator that maps from a multidimensional space to another multidimensional space. The mapping is defined by a function (`forw`), and optionally the reverse mapping can also be defined (`backw`). The input the mapping must be subtype of AbstractArray.

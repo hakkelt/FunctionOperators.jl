@@ -8,10 +8,10 @@
 # This WeakKeyDict stores all already allocated buffers. It serves like a "L2-cache": when newBuffer
 # function cannot find a proper buffer in storage ("L1-cache"), then it tries to find one in bufferPool.
 # And as it is a WeakKeyDict, it allows Garbage Collector to release buffers not used any more.
-const bufferPool = WeakKeyDict{Buffer, Int}()
+const bufferPool = Array{WeakKeyDict{Buffer, Int}, 1}(undef, 0)
 
-const bufferCounter = Counter(0)
-getNextBufferNum() = (bufferCounter.num += 1)
+const bufferCounter = Counter(Threads.Atomic{Int}(1))
+getNextBufferNum() = Threads.atomic_add!(bufferCounter.num, 1)
 
 # Special constructor of Buffer type
 # We get the list of all previously allocated buffers (storage) and first we try to find
@@ -26,7 +26,7 @@ function newBuffer(datatype::Type, new_size::Tuple{Vararg{Int}}, storage::Vector
         end
     end
     new_buffer = nothing
-    for (buffer, bufferLength) in bufferPool
+    for (buffer, bufferLength) in bufferPool[Threads.threadid()]
         if bufferLength == prod(new_size) && eltype(buffer.buffer) == datatype && buffer.available
             new_buffer = size(buffer.buffer) == new_size ?
                 buffer :
@@ -40,7 +40,7 @@ function newBuffer(datatype::Type, new_size::Tuple{Vararg{Int}}, storage::Vector
         name = "buffer"*string(number)
         info("Allocation of $name, size: $(new_size)")
         new_buffer = Buffer(Array{datatype}(undef, new_size), name, number, true)
-        push!(bufferPool, new_buffer => length(new_buffer.buffer))
+        push!(bufferPool[Threads.threadid()], new_buffer => length(new_buffer.buffer))
     end
     push!(storage, new_buffer)
     new_buffer
